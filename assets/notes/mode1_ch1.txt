@@ -1,0 +1,19 @@
+; St. Marrow's - Mode 1, Chapter 1 notes.  PLACEHOLDER story text: rewrite freely.
+; Format: first line = title, the lines after it = the text. A line with only --- ends a note.
+; Notes are numbered by where their 'n' tile sits in the map: top to bottom, left to right.
+
+WARNING, SCRAWLED ON THE WALL
+Your flashlight is a beacon. It sees the light from far away.
+Turn it off and it has to come close to find you.
+Lockers are safe, but only if it does not watch you climb in.
+---
+KEY LIST
+Three keys lock the exit of Ward A: the pharmacy key, the records key and the night nurse's key.
+Someone scattered them through the wards. The exit will not open without all three.
+---
+NIGHT NURSE'S LOG
+It walks the corridors all night. It never runs, but it never stops either.
+If it hears you running, it comes. Walk, and it only hears you up close.
+---
+TORN PAGE
+St. Marrow's was built by Mr. A. The walls here were never meant to keep people out.

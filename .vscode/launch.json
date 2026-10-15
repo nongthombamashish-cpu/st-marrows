@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug St. Marrow's",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/StMarrows.exe",
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe",
+      "preLaunchTask": "Build (debug)"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "version": "2.0.0",
+  "options": {
+    "env": {
+      "PATH": "C:\\msys64\\ucrt64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+    }
+  },
+  "tasks": [
+    {
+      "label": "Build (debug)",
+      "type": "shell",
+      "command": "make debug",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Run",
+      "type": "shell",
+      "command": ".\\StMarrows.exe",
+      "dependsOn": "Build (debug)",
+      "problemMatcher": []
+    },
+    {
+      "label": "Build (release)",
+      "type": "shell",
+      "command": "make release",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Package release zip",
+      "type": "shell",
+      "command": "make dist",
+      "problemMatcher": ["$gcc"]
+    }
+  ]
+}

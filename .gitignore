@@ -1,0 +1,8 @@
+# build output
+*.exe
+*.o
+dist/
+
+# editor / OS
+.vscode/ipch/
+Thumbs.db
