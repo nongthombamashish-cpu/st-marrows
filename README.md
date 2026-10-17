@@ -8,7 +8,7 @@
 - **Lore:** the hospital was made by Mr. A.
 - **Platform:** Windows 64-bit.
 
-**Controls:** WASD / arrows move · Shift run (loud) · Mouse aims the flashlight · F flashlight on/off · E use (read a note, unlock the exit, hide in a locker, climb out) · R restart after being caught · F3 debug (shows the stalker's state) · Esc quit
+**Controls:** WASD / arrows move · Shift run (loud) · Mouse aims the flashlight · F flashlight on/off · E use (read a note, unlock the exit, hide in a locker, climb out) · R restart after being caught · F3 debug (shows the stalker's state) · M mute · Esc pause menu
 
 ## Chapter 1 goal
 
@@ -38,11 +38,11 @@ Find the 3 keys scattered through the wards, then unlock the exit at the east en
 2. Download the latest **w64devkit** (`w64devkit-x64-...exe`) from <https://github.com/skeeto/w64devkit/releases> and extract it so `C:\w64devkit\bin\gcc.exe` exists. Use the latest release: the bundled raylib 6.0 needs a recent MinGW (an old one fails with `undefined reference to 'stat64i32'`).
 3. Open this folder in VS Code. **Ctrl+Shift+B** builds, **Terminal > Run Task > Run** starts the game, **F5** debugs.
 
-| Command | Result |
-|---|---|
-| `make` | debug build, `StMarrows.exe` |
-| `make release` | optimized, static, no console window, no DLLs needed |
-| `make dist` | release build + `dist/StMarrows-v<version>-win64.zip` |
+| Command        | Result                                                |
+| -------------- | ----------------------------------------------------- |
+| `make`         | debug build, `StMarrows.exe`                          |
+| `make release` | optimized, static, no console window, no DLLs needed  |
+| `make dist`    | release build + `dist/StMarrows-v<version>-win64.zip` |
 
 ## Layout
 
@@ -83,7 +83,9 @@ Map legend: `#` wall · `.` floor · `L` locker · `P` player start · `S` stalk
 - [x] **M3b** Walls and lockers block the flashlight (shadows)
 - [x] **M4** Hide in lockers (safe unless the stalker saw you climb in)
 - [x] **M5** Keys, locked exit, notes, objective (locked room doors can come later)
-- [ ] **M6** Chapter 1 complete: menu, pause, save, audio, CC0 art pass. **Release v0.1.0**
+- [x] **M6a** Audio: drone, footsteps, heartbeat, pickups (made in code, placeholders)
+- [x] **M6b** Title menu, pause, volume (saved in `settings.txt`)
+- [ ] **M6c** Art pass with CC0 tiles and sprites
 - [ ] **M7-M10** Chapters 2-5, one new mechanic each
 - [ ] **M11** Polish: settings, controller, performance. **Release v1.0 (Mode 1 complete)**
 

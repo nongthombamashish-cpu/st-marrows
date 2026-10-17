@@ -1,4 +1,4 @@
-// St. Marrow's - Mode 1 (milestone 6a: audio)
+// St. Marrow's - Mode 1 (milestone 6b: menu, pause, volume)
 //
 // main.c runs the window and the game loop. The real work lives in the modules:
 //   map.c      tile map, collision, line of sight     path.c     route finding
@@ -10,6 +10,7 @@
 #include "raymath.h"
 #include <math.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 #include "config.h"
 #include "map.h"
@@ -19,12 +20,13 @@
 #include "items.h"
 #include "audio.h"
 
-#define MAP_FILE   "assets/maps/mode1_ch1.txt"
-#define NOTES_FILE "assets/notes/mode1_ch1.txt"
+#define MAP_FILE      "assets/maps/mode1_ch1.txt"
+#define NOTES_FILE    "assets/notes/mode1_ch1.txt"
+#define SETTINGS_FILE "settings.txt"                // saved next to the game: just the volume (0-10)
 
 static const Color AMBIENT = { 40, 40, 56, 255 };   // how dark "dark" is (0 = pitch black)
 
-typedef enum { GS_PLAYING, GS_READING, GS_CAUGHT, GS_COMPLETE } GameState;
+typedef enum { GS_MENU, GS_PLAYING, GS_READING, GS_PAUSED, GS_CAUGHT, GS_COMPLETE } GameState;
 
 // Scale of the 640x360 picture inside the window (whole numbers when possible = sharp pixels).
 static float GetViewScale(void)
@@ -79,24 +81,60 @@ static int DrawWrapped(const char *text, int x, int y, int maxW, int size, Color
     return y;
 }
 
+// The volume (0-10) is remembered in settings.txt next to the game.
+static int LoadVolume(void)
+{
+    int v = 8;                                              // default
+    char *text = LoadFileText(SETTINGS_FILE);
+    if (text) {
+        v = atoi(text);
+        UnloadFileText(text);
+    }
+    if (v < 0) v = 0;
+    if (v > 10) v = 10;
+    return v;
+}
+
+static void SaveVolume(int v)
+{
+    SaveFileText(SETTINGS_FILE, (char *)TextFormat("%d", v));
+}
+
+// A centred list of menu items; the selected one is highlighted.
+static void DrawMenu(const char *title, const char *subtitle, const char **items, int count, int selected)
+{
+    int sw = GetScreenWidth(), sh = GetScreenHeight();
+    DrawText(title, (sw - MeasureText(title, 64)) / 2, sh / 6, 64, (Color){ 225, 50, 50, 255 });
+    DrawText(subtitle, (sw - MeasureText(subtitle, 22)) / 2, sh / 6 + 80, 22, (Color){ 190, 190, 190, 255 });
+    for (int i = 0; i < count; i++) {
+        const char *text = (i == selected) ? TextFormat(">  %s  <", items[i]) : items[i];
+        Color col = (i == selected) ? (Color){ 235, 205, 110, 255 } : (Color){ 160, 160, 160, 255 };
+        DrawText(text, (sw - MeasureText(text, 30)) / 2, sh * 45 / 100 + i * 46, 30, col);
+    }
+}
+
 int main(void)
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(VIRT_W * 2, VIRT_H * 2, "St. Marrow's");
     SetWindowMinSize(VIRT_W, VIRT_H);
+    SetExitKey(KEY_NULL);                            // Esc opens the pause menu instead of closing the game
     SetTargetFPS(60);
     AudioInit();                                     // no sound device? the game just runs silently
     ChangeDirectory(GetApplicationDirectory());      // so "assets/..." is found next to the EXE
+    int volume = LoadVolume();                       // 0..10, remembered between runs
+    AudioSetVolume(volume / 10.0f);
 
     Map map;
     if (!LoadMap(&map, MAP_FILE)) {
-        while (!WindowShouldClose()) {
+        while (!WindowShouldClose() && !IsKeyPressed(KEY_ESCAPE)) {
             BeginDrawing();
             ClearBackground(BLACK);
             DrawText("Could not load " MAP_FILE, 20, 20, 20, RED);
             DrawText("Run the game from its own folder (the one that contains 'assets').", 20, 50, 20, RAYWHITE);
             EndDrawing();
         }
+        AudioShutdown();
         CloseWindow();
         return 1;
     }
@@ -116,18 +154,42 @@ int main(void)
     StalkerInit(&stalker, &map);
     ObjectiveInit(&obj, &map);
     Camera2D cam = { .offset = { VIRT_W / 2.0f, VIRT_H / 2.0f }, .target = player.pos, .rotation = 0.0f, .zoom = 1.0f };
-    GameState state = GS_PLAYING;
+    GameState state = GS_MENU;         // the game opens on the title screen
+    int menuSel = 0;                   // which menu row is selected
+    bool quit = false;
     bool debug = false;
     int openNote = -1;                 // which note is being read
     float runTime = 0;                 // seconds spent in this run
     char toast[96] = "";               // short message at the bottom of the screen
     float toastTime = 0;
 
-    while (!WindowShouldClose()) {
+    while (!quit && !WindowShouldClose()) {
         float dt = fminf(GetFrameTime(), 0.05f);
         if (toastTime > 0) toastTime -= dt;
 
+        bool up     = IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP);
+        bool down   = IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN);
+        bool left   = IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT);
+        bool right  = IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT);
+        bool accept = IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE);
+        bool startRun = false;                               // set by: menu Play, pause Restart, R after dying
+
         // ---- Update ----
+        if (IsKeyPressed(KEY_ESCAPE)) {                      // Esc: pause, close a note, or go back to the title
+            if (state == GS_PLAYING) {
+                state = GS_PAUSED;
+                menuSel = 0;
+            } else if (state == GS_READING) {
+                state = GS_PLAYING;
+                AudioPaper();
+            } else if (state == GS_PAUSED) {
+                state = GS_PLAYING;
+            } else if (state == GS_CAUGHT || state == GS_COMPLETE) {
+                state = GS_MENU;
+                menuSel = 0;
+            }
+        }
+
         if (state == GS_PLAYING || state == GS_READING) {
             runTime += dt;
             if (state == GS_PLAYING) {
@@ -164,7 +226,33 @@ int main(void)
                 if (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_ENTER)) { state = GS_PLAYING; AudioPaper(); }
             }
             if (state != GS_COMPLETE && StalkerUpdate(&stalker, &map, &player, dt)) { state = GS_CAUGHT; AudioSting(); }
+        } else if (state == GS_MENU || state == GS_PAUSED) {
+            int count = (state == GS_MENU) ? 3 : 4;          // rows: Play/Resume, Volume, (Restart,) Quit
+            if (up)   menuSel = (menuSel + count - 1) % count;
+            if (down) menuSel = (menuSel + 1) % count;
+            if (menuSel == 1 && (left || right)) {           // the volume row
+                volume += right ? 1 : -1;
+                if (volume < 0) volume = 0;
+                if (volume > 10) volume = 10;
+                AudioSetVolume(volume / 10.0f);
+                SaveVolume(volume);
+                AudioChime();                                // so you can hear the new level
+            }
+            if (accept) {
+                if (state == GS_MENU) {
+                    if (menuSel == 0) startRun = true;
+                    else if (menuSel == 2) quit = true;
+                } else {
+                    if (menuSel == 0) state = GS_PLAYING;
+                    else if (menuSel == 2) startRun = true;
+                    else if (menuSel == 3) { state = GS_MENU; menuSel = 0; }
+                }
+            }
         } else if (IsKeyPressed(KEY_R)) {                    // caught or finished: R starts over
+            startRun = true;
+        }
+
+        if (startRun) {
             LoadMap(&map, MAP_FILE);                         // reload so the keys are back
             ObjectiveInit(&obj, &map);
             PlayerInit(&player, map.playerStart);
@@ -225,7 +313,7 @@ int main(void)
                            (Vector2){ 0, 0 }, 0, WHITE);
             int sw = GetScreenWidth(), sh = GetScreenHeight();
 
-            DrawText("WASD move  |  Shift run (loud)  |  Mouse aim  |  F flashlight  |  E use / hide  |  M mute  |  R restart  |  F3 debug  |  Esc quit",
+            DrawText("WASD move  |  Shift run (loud)  |  Mouse aim  |  F flashlight  |  E use / hide  |  M mute  |  R restart  |  F3 debug  |  Esc pause",
                      12, 10, 16, (Color){ 200, 200, 200, 170 });
             const char *goal = (obj.keys < obj.keysTotal)
                 ? TextFormat("Find the keys: %d/%d", obj.keys, obj.keysTotal)
@@ -268,23 +356,37 @@ int main(void)
                     DrawText("(blank note)", px + 24, py + 20, 30, (Color){ 235, 205, 110, 255 });
                     DrawWrapped("Write this note in assets/notes/mode1_ch1.txt", px + 24, py + 70, pw - 48, 22, (Color){ 225, 220, 200, 255 });
                 }
-                DrawText("E  close          (the stalker is still out there)", px + 24, py + ph - 34, 18, (Color){ 160, 150, 130, 255 });
+                DrawText("E or Esc  close          (the stalker is still out there)", px + 24, py + ph - 34, 18, (Color){ 160, 150, 130, 255 });
             }
             if (state == GS_CAUGHT) {
                 DrawRectangle(0, 0, sw, sh, (Color){ 60, 0, 0, 170 });
                 const char *title = "IT FOUND YOU";
-                const char *hint = "Press R to try again";
+                const char *hint = "Press R to try again     (Esc: title screen)";
                 DrawText(title, (sw - MeasureText(title, 48)) / 2, sh / 2 - 40, 48, (Color){ 225, 50, 50, 255 });
                 DrawText(hint, (sw - MeasureText(hint, 20)) / 2, sh / 2 + 20, 20, RAYWHITE);
             }
             if (state == GS_COMPLETE) {
                 DrawRectangle(0, 0, sw, sh, (Color){ 0, 0, 0, 170 });
                 const char *title = "CHAPTER 1 COMPLETE";
-                const char *time = TextFormat("Time  %d:%02d", (int)runTime / 60, (int)runTime % 60);
-                const char *hint = "Press R to play again";
+                const char *timeText = TextFormat("Time  %d:%02d", (int)runTime / 60, (int)runTime % 60);
+                const char *hint = "Press R to play again     (Esc: title screen)";
                 DrawText(title, (sw - MeasureText(title, 48)) / 2, sh / 2 - 60, 48, (Color){ 235, 205, 110, 255 });
-                DrawText(time, (sw - MeasureText(time, 26)) / 2, sh / 2 + 6, 26, RAYWHITE);
+                DrawText(timeText, (sw - MeasureText(timeText, 26)) / 2, sh / 2 + 6, 26, RAYWHITE);
                 DrawText(hint, (sw - MeasureText(hint, 20)) / 2, sh / 2 + 48, 20, (Color){ 190, 190, 190, 255 });
+            }
+            if (state == GS_MENU || state == GS_PAUSED) {
+                DrawRectangle(0, 0, sw, sh, (state == GS_MENU) ? (Color){ 0, 0, 0, 235 } : (Color){ 0, 0, 0, 190 });
+                char volText[64];
+                TextCopy(volText, TextFormat("Volume   <  %d / 10  >%s", volume, AudioIsMuted() ? "   (muted)" : ""));
+                if (state == GS_MENU) {
+                    const char *items[3] = { "Play", volText, "Quit" };
+                    DrawMenu("ST. MARROW'S", "Mode 1  -  Chapter 1: Ward A", items, 3, menuSel);
+                } else {
+                    const char *items[4] = { "Resume", volText, "Restart", "Quit to title" };
+                    DrawMenu("PAUSED", "", items, 4, menuSel);
+                }
+                const char *help = "W / S choose     A / D change volume     Enter select     Esc back";
+                DrawText(help, (sw - MeasureText(help, 18)) / 2, sh - 50, 18, (Color){ 150, 150, 150, 255 });
             }
         EndDrawing();
     }

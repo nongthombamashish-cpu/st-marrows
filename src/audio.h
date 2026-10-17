@@ -10,6 +10,8 @@ bool AudioInit(void);                 // false if there is no sound device (the 
 void AudioShutdown(void);
 void AudioToggleMute(void);
 bool AudioIsMuted(void);
+void AudioSetVolume(float v);         // master volume, 0..1
+float AudioGetVolume(void);
 
 // Call once per frame: footsteps, heartbeat, the ambient drone and the chase alert.
 void AudioUpdate(const Player *p, const Stalker *s, bool playing, float dt);

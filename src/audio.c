@@ -268,6 +268,7 @@ static void PoolFree(Pool *p)
 
 static struct {
     bool ready, muted;
+    float volume;                                   // 0..1, set from the menu
     Pool step[3], stalkerStep, heartbeat, chime, paper, locker, lockedDoor, alert, sting, complete;
     AudioStream drone;
 } A;
@@ -282,10 +283,11 @@ static void DroneCallback(void *buffer, unsigned int frames)
 bool AudioInit(void)
 {
     memset(&A, 0, sizeof A);
+    A.volume = 0.85f;
     InitAudioDevice();
     A.ready = IsAudioDeviceReady();
     if (!A.ready) return false;
-    SetMasterVolume(0.85f);
+    SetMasterVolume(A.volume);
 
     PoolMake(&A.step[0], SynthStep(58.0f));
     PoolMake(&A.step[1], SynthStep(66.0f));
@@ -322,10 +324,18 @@ void AudioShutdown(void)
 void AudioToggleMute(void)
 {
     A.muted = !A.muted;
-    if (A.ready) SetMasterVolume(A.muted ? 0.0f : 0.85f);
+    if (A.ready) SetMasterVolume(A.muted ? 0.0f : A.volume);
 }
 
 bool AudioIsMuted(void) { return A.muted; }
+
+void AudioSetVolume(float v)
+{
+    A.volume = Clamp(v, 0.0f, 1.0f);
+    if (A.ready && !A.muted) SetMasterVolume(A.volume);
+}
+
+float AudioGetVolume(void) { return A.volume; }
 
 void AudioChime(void)      { if (A.ready) PoolPlay(&A.chime, 0.8f, 0.0f, 1.0f); }
 void AudioPaper(void)      { if (A.ready) PoolPlay(&A.paper, 0.6f, 0.0f, 0.95f + 0.1f * (float)GetRandomValue(0, 10) / 10.0f); }

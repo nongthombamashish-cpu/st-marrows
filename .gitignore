@@ -6,3 +6,5 @@ dist/
 # editor / OS
 .vscode/ipch/
 Thumbs.db
+
+settings.txt
