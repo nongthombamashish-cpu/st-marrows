@@ -19,6 +19,7 @@
 #include "light.h"
 #include "items.h"
 #include "audio.h"
+#include "tiles.h"
 
 #define MAP_FILE      "assets/maps/mode1_ch1.txt"
 #define NOTES_FILE    "assets/notes/mode1_ch1.txt"
@@ -124,6 +125,7 @@ int main(void)
     ChangeDirectory(GetApplicationDirectory());      // so "assets/..." is found next to the EXE
     int volume = LoadVolume();                       // 0..10, remembered between runs
     AudioSetVolume(volume / 10.0f);
+    TilesLoad();                                     // sprites from assets/tiles (plain shapes if not set up)
 
     Map map;
     if (!LoadMap(&map, MAP_FILE)) {
@@ -158,6 +160,7 @@ int main(void)
     int menuSel = 0;                   // which menu row is selected
     bool quit = false;
     bool debug = false;
+    bool tileBrowser = false;          // F5: shows every tile of the sheet with its number
     int openNote = -1;                 // which note is being read
     float runTime = 0;                 // seconds spent in this run
     char toast[96] = "";               // short message at the bottom of the screen
@@ -263,7 +266,8 @@ int main(void)
             state = GS_PLAYING;
         }
         if (IsKeyPressed(KEY_F3)) debug = !debug;
-        if (IsKeyPressed(KEY_M)) AudioToggleMute();
+        if (IsKeyPressed(KEY_F5)) tileBrowser = !tileBrowser;
+        if (IsKeyPressed(KEY_F6)) TilesLoad();               // reload tiles.txt and the sheet without restarting
         AudioUpdate(&player, &stalker, state == GS_PLAYING || state == GS_READING, dt);
 
         cam.target = (Vector2){ roundf(player.pos.x), roundf(player.pos.y) };   // whole pixels = no shimmer
@@ -294,7 +298,7 @@ int main(void)
                 Vector2 eyes = player.hidden ? player.exitPos : player.pos;
                 DrawMap(&map, cam, eyes);
                 if (HasLineOfSight(&map, eyes, stalker.pos)) DrawStalker(&stalker);
-                if (!player.hidden) {
+                if (!player.hidden && !TileDraw(T_PLAYER, player.pos.x - TILE / 2.0f, player.pos.y - TILE / 2.0f, aim.x < 0)) {
                     DrawCircleV(player.pos, player.half, (Color){ 225, 205, 160, 255 });
                     DrawLineEx(player.pos, Vector2Add(player.pos, Vector2Scale(Vector2Normalize(aim), 7)),
                                2, (Color){ 255, 240, 200, 255 });
@@ -388,9 +392,11 @@ int main(void)
                 const char *help = "W / S choose     A / D change volume     Enter select     Esc back";
                 DrawText(help, (sw - MeasureText(help, 18)) / 2, sh - 50, 18, (Color){ 150, 150, 150, 255 });
             }
+            if (tileBrowser) TilesBrowser();
         EndDrawing();
     }
 
+    TilesUnload();
     LightKitUnload(&lights);
     UnloadRenderTexture(scene);
     UnloadRenderTexture(mask);

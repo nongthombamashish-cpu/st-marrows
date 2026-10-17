@@ -1,5 +1,6 @@
 #include "stalker.h"
 #include "raymath.h"
+#include "tiles.h"
 #include <math.h>
 #include <string.h>
 
@@ -161,6 +162,7 @@ const char *StalkerStateName(const Stalker *s)
 void DrawStalker(const Stalker *s)
 {
     if (!s->active) return;
+    if (TileDraw(T_STALKER, s->pos.x - TILE / 2.0f, s->pos.y - TILE / 2.0f, cosf(s->facing) < 0)) return;
     Color body = (s->state == ST_CHASE) ? (Color){ 235, 50, 50, 255 } : (Color){ 170, 70, 70, 255 };
     DrawCircleV(s->pos, 6, body);
     Vector2 nose = { s->pos.x + cosf(s->facing) * 9, s->pos.y + sinf(s->facing) * 9 };

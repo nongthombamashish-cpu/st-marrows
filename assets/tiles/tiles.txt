@@ -1,0 +1,16 @@
+; St. Marrow's tiles. Lines starting with ; are comments.
+; Press F5 in the game to see every tile with its number, write the numbers below, press F6 to reload.
+; -1 keeps the plain colored shape for that thing.
+sheet = assets/tiles/tileset.png
+size = 16
+spacing = 0
+margin = 0
+floor1 = 48
+floor2 = 50
+wall = 14
+locker = 75
+key = 126
+note = 65
+exit = 46
+player = 85
+stalker = 121

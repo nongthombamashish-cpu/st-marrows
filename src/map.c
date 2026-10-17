@@ -1,4 +1,5 @@
 #include "map.h"
+#include "tiles.h"
 #include <math.h>
 #include <string.h>
 
@@ -113,40 +114,52 @@ void DrawMap(const Map *m, Camera2D cam, Vector2 eyes)
 
     for (int y = y0; y <= y1; y++) {
         for (int x = x0; x <= x1; x++) {
-            Rectangle r = { (float)(x * TILE), (float)(y * TILE), TILE, TILE };
+            float px = (float)(x * TILE), py = (float)(y * TILE);
+            Rectangle r = { px, py, TILE, TILE };
             Color floorCol = ((x + y) & 1) ? (Color){ 86, 92, 106, 255 } : (Color){ 80, 86, 100, 255 };
+            Vector2 centre = { px + 8.0f, py + 8.0f };
+
+            // The floor goes under everything (sprites can have see-through corners).
+            if (!TileDraw(((x + y) & 1) ? T_FLOOR2 : T_FLOOR1, px, py, false)) DrawRectangleRec(r, floorCol);
+
             switch (m->tiles[y][x]) {
                 case '#':
-                    DrawRectangleRec(r, (Color){ 140, 146, 160, 255 });
-                    DrawRectangleLinesEx(r, 1, (Color){ 100, 106, 120, 255 });
+                    if (!TileDraw(T_WALL, px, py, false)) {
+                        DrawRectangleRec(r, (Color){ 140, 146, 160, 255 });
+                        DrawRectangleLinesEx(r, 1, (Color){ 100, 106, 120, 255 });
+                    }
                     break;
                 case 'L':
-                    DrawRectangleRec(r, floorCol);
-                    DrawRectangle(x * TILE + 2, y * TILE + 1, TILE - 4, TILE - 2, (Color){ 100, 150, 140, 255 });
+                    if (!TileDraw(T_LOCKER, px, py, false))
+                        DrawRectangle(x * TILE + 2, y * TILE + 1, TILE - 4, TILE - 2, (Color){ 100, 150, 140, 255 });
                     break;
                 case 'X':                                            // locked exit door
-                    DrawRectangleRec(r, (Color){ 120, 84, 52, 255 });
-                    DrawRectangleLinesEx(r, 1, (Color){ 70, 48, 30, 255 });
-                    DrawRectangle(x * TILE + 6, y * TILE + 5, 4, 6, (Color){ 230, 190, 70, 255 });
+                    if (!TileDraw(T_EXIT, px, py, false)) {
+                        DrawRectangleRec(r, (Color){ 120, 84, 52, 255 });
+                        DrawRectangleLinesEx(r, 1, (Color){ 70, 48, 30, 255 });
+                        DrawRectangle(x * TILE + 6, y * TILE + 5, 4, 6, (Color){ 230, 190, 70, 255 });
+                    }
                     break;
                 case 'K':                                            // key (only if you can see it)
-                    DrawRectangleRec(r, floorCol);
-                    if (!HasLineOfSight(m, eyes, (Vector2){ x * TILE + 8.0f, y * TILE + 8.0f })) break;
-                    DrawCircle(x * TILE + 8, y * TILE + 5, 3, (Color){ 240, 200, 70, 255 });
-                    DrawRectangle(x * TILE + 7, y * TILE + 7, 2, 7, (Color){ 240, 200, 70, 255 });
-                    DrawRectangle(x * TILE + 9, y * TILE + 11, 3, 1, (Color){ 240, 200, 70, 255 });
-                    DrawRectangle(x * TILE + 9, y * TILE + 13, 2, 1, (Color){ 240, 200, 70, 255 });
+                    if (!HasLineOfSight(m, eyes, centre)) break;
+                    if (!TileDraw(T_KEY, px, py, false)) {
+                        DrawCircle(x * TILE + 8, y * TILE + 5, 3, (Color){ 240, 200, 70, 255 });
+                        DrawRectangle(x * TILE + 7, y * TILE + 7, 2, 7, (Color){ 240, 200, 70, 255 });
+                        DrawRectangle(x * TILE + 9, y * TILE + 11, 3, 1, (Color){ 240, 200, 70, 255 });
+                        DrawRectangle(x * TILE + 9, y * TILE + 13, 2, 1, (Color){ 240, 200, 70, 255 });
+                    }
                     break;
                 case 'n':                                            // note (only if you can see it)
-                    DrawRectangleRec(r, floorCol);
-                    if (!HasLineOfSight(m, eyes, (Vector2){ x * TILE + 8.0f, y * TILE + 8.0f })) break;
-                    DrawRectangle(x * TILE + 4, y * TILE + 3, 8, 10, (Color){ 232, 226, 200, 255 });
-                    DrawRectangle(x * TILE + 5, y * TILE + 5, 6, 1, (Color){ 120, 112, 96, 255 });
-                    DrawRectangle(x * TILE + 5, y * TILE + 7, 6, 1, (Color){ 120, 112, 96, 255 });
-                    DrawRectangle(x * TILE + 5, y * TILE + 9, 4, 1, (Color){ 120, 112, 96, 255 });
+                    if (!HasLineOfSight(m, eyes, centre)) break;
+                    if (!TileDraw(T_NOTE, px, py, false)) {
+                        DrawRectangle(x * TILE + 4, y * TILE + 3, 8, 10, (Color){ 232, 226, 200, 255 });
+                        DrawRectangle(x * TILE + 5, y * TILE + 5, 6, 1, (Color){ 120, 112, 96, 255 });
+                        DrawRectangle(x * TILE + 5, y * TILE + 7, 6, 1, (Color){ 120, 112, 96, 255 });
+                        DrawRectangle(x * TILE + 5, y * TILE + 9, 4, 1, (Color){ 120, 112, 96, 255 });
+                    }
                     break;
                 default:
-                    DrawRectangleRec(r, floorCol);
+                    break;
             }
         }
     }
