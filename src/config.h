@@ -19,7 +19,14 @@
 #define PLAYER_NOISE_RUN  120.0f    // ...and a running one
 #define LOCKER_REACH       22.0f    // how close you must stand to a locker to hide in it
 #define ITEM_REACH         22.0f    // how close you must be to read a note or use the exit
-#define KEY_PICKUP_DIST    12.0f    // walk this close to a key to pick it up
+#define KEY_PICKUP_DIST    12.0f    // walk this close to a key, fuse or battery to pick it up
+
+// Flashlight battery (only in chapters that use it: see chapters.h)
+#define BATTERY_MAX        100.0f
+#define BATTERY_DRAIN        1.2f    // lost per second while the flashlight is on
+#define BATTERY_PICKUP      40.0f    // what one battery gives back
+#define BATTERY_DIM_AT       0.25f   // below this fraction of a full battery the beam gets shorter...
+#define BATTERY_FLICKER_AT   0.12f   // ...and below this one it flickers
 
 // Stalker (pixels per second / pixels)
 #define STALKER_PATROL_SPEED       30.0f

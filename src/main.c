@@ -1,15 +1,17 @@
-// St. Marrow's - Mode 1 (milestone 6b: menu, pause, volume)
+// St. Marrow's - Mode 1 (milestone 7: chapters, and Chapter 2 - the Surgery Wing)
 //
 // main.c runs the window and the game loop. The real work lives in the modules:
 //   map.c      tile map, collision, line of sight     path.c     route finding
 //   player.c   input, movement, hiding                stalker.c  the thing that hunts you
-//   light.c    lights and shadows                     items.c    keys, notes, the exit
+//   light.c    lights and shadows                     items.c    keys, fuses, batteries, notes, the exit
 //   audio.c    every sound (made in code)             config.h   every tuning number
+//   chapters.h the list of chapters (map, notes, stalker speed, battery)
 
 #include "raylib.h"
 #include "raymath.h"
 #include <math.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "config.h"
@@ -20,10 +22,10 @@
 #include "items.h"
 #include "audio.h"
 #include "tiles.h"
+#include "chapters.h"
 
-#define MAP_FILE      "assets/maps/mode1_ch1.txt"
-#define NOTES_FILE    "assets/notes/mode1_ch1.txt"
-#define SETTINGS_FILE "settings.txt"                // saved next to the game: just the volume (0-10)
+#define SETTINGS_FILE "settings.txt"                // saved next to the game: the volume (0-10) and how many chapters are unlocked
+#define TITLE_CREDIT  "Made by Mr. A   |   Art: Kenney (CC0)"
 
 static const Color AMBIENT = { 40, 40, 56, 255 };   // how dark "dark" is (0 = pitch black)
 
@@ -82,35 +84,108 @@ static int DrawWrapped(const char *text, int x, int y, int maxW, int size, Color
     return y;
 }
 
-// The volume (0-10) is remembered in settings.txt next to the game.
-static int LoadVolume(void)
+// settings.txt (next to the game): line 1 = volume 0-10, line 2 = how many chapters are unlocked.
+static void LoadSettings(int *volume, int *unlocked)
 {
-    int v = 8;                                              // default
+    int v = 8, u = 1;                                       // defaults
     char *text = LoadFileText(SETTINGS_FILE);
     if (text) {
-        v = atoi(text);
+        sscanf(text, "%d %d", &v, &u);                      // an old file with only the volume leaves u at 1
         UnloadFileText(text);
     }
     if (v < 0) v = 0;
     if (v > 10) v = 10;
-    return v;
+    if (u < 1) u = 1;
+    if (u > CHAPTER_COUNT) u = CHAPTER_COUNT;
+    *volume = v;
+    *unlocked = u;
 }
 
-static void SaveVolume(int v)
+static void SaveSettings(int volume, int unlocked)
 {
-    SaveFileText(SETTINGS_FILE, (char *)TextFormat("%d", v));
+    SaveFileText(SETTINGS_FILE, (char *)TextFormat("%d\n%d", volume, unlocked));
 }
 
-// A centred list of menu items; the selected one is highlighted.
-static void DrawMenu(const char *title, const char *subtitle, const char **items, int count, int selected)
+// The yellow line at the top: what to do next.
+static const char *GoalText(const Objective *o, const Map *m)
+{
+    if (o->keys < o->keysTotal)       return TextFormat("Find the keys: %d/%d", o->keys, o->keysTotal);
+    if (o->fuses < o->fusesTotal)     return TextFormat("Find the fuses: %d/%d", o->fuses, o->fusesTotal);
+    if (m->hasFuseBox && !m->powered) return "Put the fuses in the fuse box to restore the power.";
+    if (m->hasFuseBox)                return "The power is on. Get to the elevator before it finds you.";
+    return "All keys found. Reach the exit at the east end of the corridor.";
+}
+
+// Loads a chapter's map and notes, and puts the player and the stalker at the start. False if the map file is missing.
+static bool LoadChapter(int chapter, Map *map, Note *notes, int *noteCount, Objective *obj, Player *player, Stalker *stalker)
+{
+    const Chapter *ch = &CHAPTERS[chapter];
+    if (!LoadMap(map, ch->map)) return false;
+    *noteCount = LoadNotes(ch->notes, notes, MAX_NOTES);
+    ObjectiveInit(obj, map);
+    PlayerInit(player, map->playerStart);
+    player->usesBattery = ch->battery;
+    StalkerInit(stalker, map);
+    StalkerSetSpeed(stalker, ch->stalkerSpeed);
+    return true;
+}
+
+// Behind the title screen: a searchlight sweeping the dark, and a ghost that shows up when the light passes over it.
+static void DrawTitleBackdrop(float t)
 {
     int sw = GetScreenWidth(), sh = GetScreenHeight();
-    DrawText(title, (sw - MeasureText(title, 64)) / 2, sh / 6, 64, (Color){ 225, 50, 50, 255 });
-    DrawText(subtitle, (sw - MeasureText(subtitle, 22)) / 2, sh / 6 + 80, 22, (Color){ 190, 190, 190, 255 });
+    Vector2 lamp = { sw / 2.0f, -30.0f };                           // the light hangs just above the top edge
+    float beam = 90.0f + 42.0f * sinf(t * 0.45f);                   // degrees: 90 = straight down
+
+    // The ghost, big, low on the right. It is only clearly visible while the beam is near it.
+    Vector2 ghost = { sw * 0.80f, sh * 0.62f };
+    float toGhost = atan2f(ghost.y - lamp.y, ghost.x - lamp.x) * RAD2DEG;
+    float lit = 1.0f - fminf(fabsf(toGhost - beam) / 14.0f, 1.0f);   // 1 = right in the beam, 0 = out of it
+    unsigned char alpha = (unsigned char)(12.0f + 200.0f * lit);
+    int k = (int)(fminf((float)sw, (float)sh) * 0.36f / TILE);       // whole-number scale keeps the pixels even
+    if (k < 1) k = 1;
+    float size = (float)(TILE * k);
+    TileDrawEx(T_STALKER, (Rectangle){ ghost.x - size / 2, ghost.y - size / 2, size, size },
+               (Color){ 255, 255, 255, alpha }, false);
+
+    // The beam: three overlapping wedges look like a soft edge.
+    float reach = sh * 1.5f;
+    DrawCircleSector(lamp, reach, beam - 14.0f, beam + 14.0f, 24, (Color){ 190, 190, 215, 20 });
+    DrawCircleSector(lamp, reach, beam - 9.0f,  beam + 9.0f,  24, (Color){ 190, 190, 215, 24 });
+    DrawCircleSector(lamp, reach, beam - 4.0f,  beam + 4.0f,  24, (Color){ 190, 190, 215, 28 });
+}
+
+// A centred menu: a red title with a faint glow and an occasional flicker, and a dark-red bar behind the selected row.
+static void DrawMenu(const char *title, const char *subtitle, const char **items, int count, int selected, float t)
+{
+    int sw = GetScreenWidth(), sh = GetScreenHeight();
+
+    float flicker = 1.0f;
+    if (fmodf(t, 6.0f) > 5.5f && GetRandomValue(0, 2) == 0) flicker = 0.3f;
+    Font font = GetFontDefault();
+    float size = 72.0f, spacing = 10.0f;
+    Vector2 dim = MeasureTextEx(font, title, size, spacing);
+    Vector2 pos = { (sw - dim.x) / 2, sh / 7.0f };
+    for (int i = 0; i < 4; i++) {                                    // glow: the same text a few pixels off, very faint
+        Vector2 off = { 0.0f, 0.0f };
+        if (i == 0) off.x = -3.0f;
+        if (i == 1) off.x = 3.0f;
+        if (i == 2) off.y = -3.0f;
+        if (i == 3) off.y = 3.0f;
+        DrawTextEx(font, title, (Vector2){ pos.x + off.x, pos.y + off.y }, size, spacing,
+                   (Color){ 150, 20, 20, (unsigned char)(70 * flicker) });
+    }
+    DrawTextEx(font, title, pos, size, spacing, (Color){ 225, 50, 50, (unsigned char)(255 * flicker) });
+    DrawText(subtitle, (sw - MeasureText(subtitle, 22)) / 2, (int)(pos.y + size + 18), 22, (Color){ 150, 150, 160, 255 });
+
     for (int i = 0; i < count; i++) {
-        const char *text = (i == selected) ? TextFormat(">  %s  <", items[i]) : items[i];
-        Color col = (i == selected) ? (Color){ 235, 205, 110, 255 } : (Color){ 160, 160, 160, 255 };
-        DrawText(text, (sw - MeasureText(text, 30)) / 2, sh * 45 / 100 + i * 46, 30, col);
+        int y = sh * 48 / 100 + i * 52;
+        int w = MeasureText(items[i], 30);
+        if (i == selected) {
+            DrawRectangle((sw - w) / 2 - 40, y - 8, w + 80, 46, (Color){ 110, 20, 20, 90 });
+            DrawRectangle((sw - w) / 2 - 40, y + 36, w + 80, 2, (Color){ 225, 50, 50, 170 });
+        }
+        DrawText(items[i], (sw - w) / 2, y, 30, (i == selected) ? (Color){ 240, 215, 130, 255 } : (Color){ 130, 130, 140, 255 });
     }
 }
 
@@ -123,16 +198,23 @@ int main(void)
     SetTargetFPS(60);
     AudioInit();                                     // no sound device? the game just runs silently
     ChangeDirectory(GetApplicationDirectory());      // so "assets/..." is found next to the EXE
-    int volume = LoadVolume();                       // 0..10, remembered between runs
+    int volume, unlocked;
+    LoadSettings(&volume, &unlocked);                // volume 0..10 and unlocked chapters, remembered between runs
     AudioSetVolume(volume / 10.0f);
     TilesLoad();                                     // sprites from assets/tiles (plain shapes if not set up)
 
     Map map;
-    if (!LoadMap(&map, MAP_FILE)) {
+    Note notes[MAX_NOTES];
+    int noteCount = 0;
+    Player player;
+    Stalker stalker;
+    Objective obj;
+    int chapter = 0;                   // the chapter selected on the title screen / being played (0 = chapter 1)
+    if (!LoadChapter(chapter, &map, notes, &noteCount, &obj, &player, &stalker)) {
         while (!WindowShouldClose() && !IsKeyPressed(KEY_ESCAPE)) {
             BeginDrawing();
             ClearBackground(BLACK);
-            DrawText("Could not load " MAP_FILE, 20, 20, 20, RED);
+            DrawText(TextFormat("Could not load %s", CHAPTERS[chapter].map), 20, 20, 20, RED);
             DrawText("Run the game from its own folder (the one that contains 'assets').", 20, 50, 20, RAYWHITE);
             EndDrawing();
         }
@@ -140,8 +222,6 @@ int main(void)
         CloseWindow();
         return 1;
     }
-    Note notes[MAX_NOTES];
-    int noteCount = LoadNotes(NOTES_FILE, notes, MAX_NOTES);
 
     RenderTexture2D scene = LoadRenderTexture(VIRT_W, VIRT_H);   // the game picture
     RenderTexture2D mask  = LoadRenderTexture(VIRT_W, VIRT_H);   // the darkness, multiplied over the picture
@@ -149,15 +229,10 @@ int main(void)
     LightKit lights;
     LightKitInit(&lights);
 
-    Player player;
-    Stalker stalker;
-    Objective obj;
-    PlayerInit(&player, map.playerStart);
-    StalkerInit(&stalker, &map);
-    ObjectiveInit(&obj, &map);
     Camera2D cam = { .offset = { VIRT_W / 2.0f, VIRT_H / 2.0f }, .target = player.pos, .rotation = 0.0f, .zoom = 1.0f };
     GameState state = GS_MENU;         // the game opens on the title screen
     int menuSel = 0;                   // which menu row is selected
+    char menuMsg[128] = "";            // an error shown on the title screen (e.g. a missing map file)
     bool quit = false;
     bool debug = false;
     bool tileBrowser = false;          // F5: shows every tile of the sheet with its number
@@ -176,6 +251,7 @@ int main(void)
         bool right  = IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT);
         bool accept = IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE);
         bool startRun = false;                               // set by: menu Play, pause Restart, R after dying
+        int selectable = debug ? CHAPTER_COUNT : unlocked;   // chapters the title screen lets you pick (F3 opens them all, for testing)
 
         // ---- Update ----
         if (IsKeyPressed(KEY_ESCAPE)) {                      // Esc: pause, close a note, or go back to the title
@@ -188,6 +264,7 @@ int main(void)
             } else if (state == GS_PAUSED) {
                 state = GS_PLAYING;
             } else if (state == GS_CAUGHT || state == GS_COMPLETE) {
+                if (state == GS_COMPLETE && chapter + 1 < unlocked) chapter++;   // the title screen offers the next chapter
                 state = GS_MENU;
                 menuSel = 0;
             }
@@ -196,11 +273,33 @@ int main(void)
         if (state == GS_PLAYING || state == GS_READING) {
             runTime += dt;
             if (state == GS_PLAYING) {
+                bool lightWasOn = player.flashlight;
                 PlayerUpdate(&player, &map, dt);
+                if (player.usesBattery && !player.hidden && player.battery <= 0.0f) {
+                    if (lightWasOn && !player.flashlight) {              // it just ran out
+                        TextCopy(toast, "The flashlight died.");
+                        toastTime = 3.0f;
+                        AudioFlashlightDead();
+                    } else if (!lightWasOn && IsKeyPressed(KEY_F)) {     // pressing F on a dead flashlight
+                        TextCopy(toast, "No battery left.");
+                        toastTime = 2.0f;
+                        AudioFlashlightDead();
+                    }
+                }
                 if (!player.hidden && PickUpKey(&obj, &map, player.pos)) {
                     TextCopy(toast, TextFormat("Key found  (%d/%d)", obj.keys, obj.keysTotal));
                     toastTime = 2.5f;
                     AudioChime();
+                }
+                if (!player.hidden && PickUpFuse(&obj, &map, player.pos)) {
+                    TextCopy(toast, TextFormat("Fuse found  (%d/%d)", obj.fuses, obj.fusesTotal));
+                    toastTime = 2.5f;
+                    AudioChime();
+                }
+                if (!player.hidden && player.usesBattery && PickUpBattery(&player.battery, &map, player.pos)) {
+                    TextCopy(toast, TextFormat("Battery  +%d%%", (int)BATTERY_PICKUP));
+                    toastTime = 2.0f;
+                    AudioBattery();
                 }
                 if (IsKeyPressed(KEY_E)) {                   // E does the most useful thing nearby
                     int note;
@@ -211,12 +310,32 @@ int main(void)
                         openNote = note;
                         state = GS_READING;
                         AudioPaper();
+                    } else if (FuseBoxNear(&map, player.pos)) {
+                        if (map.powered) {
+                            TextCopy(toast, "The power is already on.");
+                            toastTime = 2.0f;
+                        } else if (obj.fuses >= obj.fusesTotal) {         // the breaker catches: loud. The stalker goes to look.
+                            map.powered = true;
+                            StalkerAlert(&stalker, &map, player.pos);
+                            TextCopy(toast, "Power restored.  The whole wing heard that.");
+                            toastTime = 4.0f;
+                            AudioPowerOn();
+                        } else {
+                            TextCopy(toast, TextFormat("The fuse box needs %d fuses.  You have %d.", obj.fusesTotal, obj.fuses));
+                            toastTime = 2.5f;
+                            AudioLockedDoor();
+                        }
                     } else if (ExitNear(&map, player.pos)) {
-                        if (obj.keys >= obj.keysTotal) {
+                        if (ObjectiveDone(&obj, &map)) {
                             state = GS_COMPLETE;
                             AudioComplete();
+                            if (chapter + 2 > unlocked && chapter + 1 < CHAPTER_COUNT) {   // the next chapter opens
+                                unlocked = chapter + 2;
+                                SaveSettings(volume, unlocked);
+                            }
                         } else {
-                            TextCopy(toast, TextFormat("The exit is locked.  Keys: %d/%d", obj.keys, obj.keysTotal));
+                            if (obj.keys < obj.keysTotal) TextCopy(toast, TextFormat("The exit is locked.  Keys: %d/%d", obj.keys, obj.keysTotal));
+                            else                          TextCopy(toast, "The elevator is dead.  Restore the power first.");
                             toastTime = 2.5f;
                             AudioLockedDoor();
                         }
@@ -230,40 +349,51 @@ int main(void)
             }
             if (state != GS_COMPLETE && StalkerUpdate(&stalker, &map, &player, dt)) { state = GS_CAUGHT; AudioSting(); }
         } else if (state == GS_MENU || state == GS_PAUSED) {
-            int count = (state == GS_MENU) ? 3 : 4;          // rows: Play/Resume, Volume, (Restart,) Quit
+            int count = 4;                                   // title: Play, Chapter, Volume, Quit.   pause: Resume, Volume, Restart, Quit to title
+            int volRow = (state == GS_MENU) ? 2 : 1;
+            if (state == GS_MENU && chapter >= selectable) chapter = selectable - 1;
             if (up)   menuSel = (menuSel + count - 1) % count;
             if (down) menuSel = (menuSel + 1) % count;
-            if (menuSel == 1 && (left || right)) {           // the volume row
+            if (state == GS_MENU && menuSel == 1 && (left || right)) {       // the chapter row
+                int next = chapter + (right ? 1 : -1);
+                if (next >= 0 && next < selectable) { chapter = next; AudioPaper(); }
+            }
+            if (menuSel == volRow && (left || right)) {      // the volume row
                 volume += right ? 1 : -1;
                 if (volume < 0) volume = 0;
                 if (volume > 10) volume = 10;
                 AudioSetVolume(volume / 10.0f);
-                SaveVolume(volume);
+                SaveSettings(volume, unlocked);
                 AudioChime();                                // so you can hear the new level
             }
             if (accept) {
                 if (state == GS_MENU) {
-                    if (menuSel == 0) startRun = true;
-                    else if (menuSel == 2) quit = true;
+                    if (menuSel == 0 || menuSel == 1) startRun = true;
+                    else if (menuSel == 3) quit = true;
                 } else {
                     if (menuSel == 0) state = GS_PLAYING;
                     else if (menuSel == 2) startRun = true;
                     else if (menuSel == 3) { state = GS_MENU; menuSel = 0; }
                 }
             }
-        } else if (IsKeyPressed(KEY_R)) {                    // caught or finished: R starts over
-            startRun = true;
+        } else {                                             // caught or finished
+            if (IsKeyPressed(KEY_R)) startRun = true;        // R starts the chapter over
+            else if (state == GS_COMPLETE && accept && chapter + 1 < CHAPTER_COUNT) { chapter++; startRun = true; }   // Enter: next chapter
         }
 
         if (startRun) {
-            LoadMap(&map, MAP_FILE);                         // reload so the keys are back
-            ObjectiveInit(&obj, &map);
-            PlayerInit(&player, map.playerStart);
-            StalkerInit(&stalker, &map);
-            runTime = 0;
-            toastTime = 0;
-            openNote = -1;
-            state = GS_PLAYING;
+            if (LoadChapter(chapter, &map, notes, &noteCount, &obj, &player, &stalker)) {   // reloads the map, so keys, fuses and batteries are back
+                runTime = 0;
+                openNote = -1;
+                menuMsg[0] = '\0';
+                TextCopy(toast, TextFormat("Chapter %d: %s", chapter + 1, CHAPTERS[chapter].name));
+                toastTime = 3.5f;
+                state = GS_PLAYING;
+            } else {
+                TextCopy(menuMsg, TextFormat("Could not load %s. Is the assets folder next to the game?", CHAPTERS[chapter].map));
+                state = GS_MENU;
+                menuSel = 1;
+            }
         }
         if (IsKeyPressed(KEY_F3)) debug = !debug;
         if (IsKeyPressed(KEY_F5)) tileBrowser = !tileBrowser;
@@ -281,13 +411,33 @@ int main(void)
         float aimDeg = (aim.x == 0 && aim.y == 0) ? 0 : atan2f(aim.y, aim.x) * RAD2DEG;
 
         // ---- Draw 1: the darkness mask (dark everywhere, light added where the lights are) ----
-        ClearMask(mask, AMBIENT);
+        float now = (float)GetTime();
+        Color ambient = AMBIENT;
+        if (map.powered) {                                   // emergency lighting once the power is on: a slow red pulse
+            float pulse = 0.5f + 0.5f * sinf(now * 2.2f);
+            ambient = (Color){ (unsigned char)(50.0f + 18.0f * pulse), 36, 44, 255 };
+        }
+        ClearMask(mask, ambient);
         if (player.hidden) {
             AddLight(&lights, mask, &map, cam, lights.glow, player.pos, 20.0f, 0);       // only a faint glow inside the locker
         } else {
             AddLight(&lights, mask, &map, cam, lights.glow, player.pos, GLOW_RANGE, 0);
-            if (player.flashlight)
-                AddLight(&lights, mask, &map, cam, lights.beam, player.pos, BEAM_RANGE, aimDeg);
+            if (player.flashlight) {
+                float range = BEAM_RANGE;
+                bool beamOn = true;
+                if (player.usesBattery) {
+                    float charge = player.battery / BATTERY_MAX;
+                    if (charge < BATTERY_DIM_AT) range *= 0.55f + 0.45f * (charge / BATTERY_DIM_AT);   // a weak battery: a shorter beam...
+                    if (charge < BATTERY_FLICKER_AT && sinf(now * 41.0f) * sinf(now * 17.0f + 1.0f) > 0.45f)
+                        beamOn = false;                                                                // ...that flickers
+                }
+                if (beamOn) AddLight(&lights, mask, &map, cam, lights.beam, player.pos, range, aimDeg);
+            }
+        }
+        if (map.powered) {                                   // the elevator glows once it has power (only drawn when it is near)
+            Vector2 lamp;
+            if (ExitLightPos(&map, &lamp) && Vector2Distance(lamp, player.pos) < 380.0f)
+                AddLight(&lights, mask, &map, cam, lights.glow, lamp, 56.0f, 0);
         }
 
         // ---- Draw 2: the world, then the mask multiplied on top ----
@@ -319,10 +469,18 @@ int main(void)
 
             DrawText("WASD move  |  Shift run (loud)  |  Mouse aim  |  F flashlight  |  E use / hide  |  M mute  |  R restart  |  F3 debug  |  Esc pause",
                      12, 10, 16, (Color){ 200, 200, 200, 170 });
-            const char *goal = (obj.keys < obj.keysTotal)
-                ? TextFormat("Find the keys: %d/%d", obj.keys, obj.keysTotal)
-                : "All keys found. Reach the exit at the east end of the corridor.";
-            DrawText(goal, 12, 34, 20, (Color){ 235, 205, 110, 235 });
+            DrawText(GoalText(&obj, &map), 12, 34, 20, (Color){ 235, 205, 110, 235 });
+
+            if (player.usesBattery) {                       // flashlight battery: a bar that turns yellow, then red and blinking
+                float charge = player.battery / BATTERY_MAX;
+                Color bc = (charge > BATTERY_DIM_AT) ? (Color){ 110, 220, 130, 235 }
+                         : (charge > BATTERY_FLICKER_AT) ? (Color){ 235, 200, 80, 235 } : (Color){ 235, 70, 60, 235 };
+                if (charge <= BATTERY_FLICKER_AT && fmodf(now, 0.8f) > 0.5f) bc.a = 90;
+                DrawText("BATTERY", 12, sh - 34, 16, (Color){ 200, 200, 200, 190 });
+                DrawRectangle(88, sh - 33, 124, 14, (Color){ 20, 20, 24, 200 });
+                DrawRectangle(90, sh - 31, (int)(120.0f * charge), 10, bc);
+                if (player.battery <= 0.0f) DrawText("DEAD", 222, sh - 34, 16, (Color){ 235, 70, 60, 235 });
+            }
 
             // What E would do right now.
             const char *prompt = NULL;
@@ -330,7 +488,12 @@ int main(void)
                 Vector2 lockerAt;
                 if (player.hidden)                              prompt = "Hiding...   press E to climb out";
                 else if (NoteNear(&map, player.pos) >= 0)       prompt = "E   read note";
-                else if (ExitNear(&map, player.pos))            prompt = (obj.keys >= obj.keysTotal) ? "E   unlock the exit" : "The exit is locked";
+                else if (FuseBoxNear(&map, player.pos))         prompt = map.powered ? "The power is on"
+                                                                       : (obj.fuses >= obj.fusesTotal) ? "E   put in the fuses  (loud!)"
+                                                                       : TextFormat("The fuse box needs %d fuses  (you have %d)", obj.fusesTotal, obj.fuses);
+                else if (ExitNear(&map, player.pos))            prompt = ObjectiveDone(&obj, &map) ? TextFormat("E   %s", CHAPTERS[chapter].exitUse)
+                                                                       : (obj.keys < obj.keysTotal) ? "The exit is locked" : "The elevator has no power";
+                else if (player.usesBattery && BatteryNear(&map, player.pos)) prompt = "A spare battery.  Yours is still good: come back for it.";
                 else if (PlayerNearLocker(&player, &map, &lockerAt)) prompt = "E   hide in locker";
             }
             if (prompt)
@@ -345,6 +508,7 @@ int main(void)
                                     (int)Vector2Distance(stalker.pos, player.pos),
                                     player.hidden ? (stalker.knowsHiding ? "HIDDEN (it saw you!)" : "HIDDEN (unseen)") : ""),
                          12, 106, 16, ORANGE);
+                if (player.usesBattery) DrawText(TextFormat("battery %.0f / %.0f", player.battery, BATTERY_MAX), 12, 128, 16, YELLOW);
             }
 
             if (state == GS_READING) {
@@ -358,7 +522,7 @@ int main(void)
                     DrawWrapped(notes[openNote].body, px + 24, py + 70, pw - 48, 22, (Color){ 225, 220, 200, 255 });
                 } else {
                     DrawText("(blank note)", px + 24, py + 20, 30, (Color){ 235, 205, 110, 255 });
-                    DrawWrapped("Write this note in assets/notes/mode1_ch1.txt", px + 24, py + 70, pw - 48, 22, (Color){ 225, 220, 200, 255 });
+                    DrawWrapped(TextFormat("Write this note in %s", CHAPTERS[chapter].notes), px + 24, py + 70, pw - 48, 22, (Color){ 225, 220, 200, 255 });
                 }
                 DrawText("E or Esc  close          (the stalker is still out there)", px + 24, py + ph - 34, 18, (Color){ 160, 150, 130, 255 });
             }
@@ -371,26 +535,43 @@ int main(void)
             }
             if (state == GS_COMPLETE) {
                 DrawRectangle(0, 0, sw, sh, (Color){ 0, 0, 0, 170 });
-                const char *title = "CHAPTER 1 COMPLETE";
-                const char *timeText = TextFormat("Time  %d:%02d", (int)runTime / 60, (int)runTime % 60);
-                const char *hint = "Press R to play again     (Esc: title screen)";
+                const char *title = TextFormat("CHAPTER %d COMPLETE", chapter + 1);
+                const char *timeText = TextFormat("%s   -   Time  %d:%02d", CHAPTERS[chapter].name, (int)runTime / 60, (int)runTime % 60);
+                const char *hint = (chapter + 1 < CHAPTER_COUNT) ? "Enter  next chapter        R  play again        Esc  title screen"
+                                                                  : "More chapters are coming.        R  play again        Esc  title screen";
                 DrawText(title, (sw - MeasureText(title, 48)) / 2, sh / 2 - 60, 48, (Color){ 235, 205, 110, 255 });
                 DrawText(timeText, (sw - MeasureText(timeText, 26)) / 2, sh / 2 + 6, 26, RAYWHITE);
                 DrawText(hint, (sw - MeasureText(hint, 20)) / 2, sh / 2 + 48, 20, (Color){ 190, 190, 190, 255 });
             }
             if (state == GS_MENU || state == GS_PAUSED) {
-                DrawRectangle(0, 0, sw, sh, (state == GS_MENU) ? (Color){ 0, 0, 0, 235 } : (Color){ 0, 0, 0, 190 });
+                float t = (float)GetTime();
+                DrawRectangle(0, 0, sw, sh, (state == GS_MENU) ? (Color){ 0, 0, 0, 255 } : (Color){ 0, 0, 0, 200 });
+                if (state == GS_MENU) DrawTitleBackdrop(t);
+
+                char bar[11];                                        // the volume as ten little bars
+                for (int i = 0; i < 10; i++) bar[i] = (i < volume) ? '|' : '.';
+                bar[10] = '\0';
                 char volText[64];
-                TextCopy(volText, TextFormat("Volume   <  %d / 10  >%s", volume, AudioIsMuted() ? "   (muted)" : ""));
+                TextCopy(volText, TextFormat("Volume   < %s >%s", bar, AudioIsMuted() ? "  (muted)" : ""));
+
                 if (state == GS_MENU) {
-                    const char *items[3] = { "Play", volText, "Quit" };
-                    DrawMenu("ST. MARROW'S", "Mode 1  -  Chapter 1: Ward A", items, 3, menuSel);
+                    char chapText[64];                               // "Chapter < 2: Surgery Wing >" (arrows only if there is another to pick)
+                    if (selectable > 1) TextCopy(chapText, TextFormat("Chapter   < %d: %s >", chapter + 1, CHAPTERS[chapter].name));
+                    else                TextCopy(chapText, TextFormat("Chapter   %d: %s", chapter + 1, CHAPTERS[chapter].name));
+                    const char *items[4] = { "Play", chapText, volText, "Quit" };
+                    DrawMenu("ST. MARROW'S", TextFormat("Mode 1  -  Chapter %d: %s", chapter + 1, CHAPTERS[chapter].name), items, 4, menuSel, t);
                 } else {
                     const char *items[4] = { "Resume", volText, "Restart", "Quit to title" };
-                    DrawMenu("PAUSED", "", items, 4, menuSel);
+                    DrawMenu("PAUSED", "", items, 4, menuSel, t);
                 }
-                const char *help = "W / S choose     A / D change volume     Enter select     Esc back";
-                DrawText(help, (sw - MeasureText(help, 18)) / 2, sh - 50, 18, (Color){ 150, 150, 150, 255 });
+                const char *help = "W / S  choose        A / D  change        Enter  select        Esc  back";
+                DrawText(help, (sw - MeasureText(help, 16)) / 2, sh - 44, 16, (Color){ 110, 110, 120, 255 });
+                if (state == GS_MENU) {
+                    DrawText(TITLE_CREDIT, 16, sh - 26, 14, (Color){ 90, 90, 100, 255 });
+                    if (menuMsg[0]) DrawText(menuMsg, (sw - MeasureText(menuMsg, 18)) / 2, sh - 76, 18, (Color){ 230, 90, 80, 255 });
+                    if (t < 1.5f)                                    // fade in from black when the game starts
+                        DrawRectangle(0, 0, sw, sh, (Color){ 0, 0, 0, (unsigned char)(255.0f * (1.0f - t / 1.5f)) });
+                }
             }
             if (tileBrowser) TilesBrowser();
         EndDrawing();

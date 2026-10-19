@@ -8,6 +8,8 @@ typedef struct {
     Vector2 pos;          // centre of the player, in world pixels (the locker's centre while hiding)
     float   half;         // half the size of the collision box
     bool    flashlight;
+    float   battery;      // flashlight charge, 0..BATTERY_MAX
+    bool    usesBattery;  // false = the flashlight never runs out (chapter 1)
     bool    moving, running;
     bool    hidden;       // inside a locker
     Vector2 exitPos;      // where you stand again when you climb out

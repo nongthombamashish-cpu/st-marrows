@@ -5,28 +5,71 @@
 
 void ObjectiveInit(Objective *o, const Map *m)
 {
-    o->keys = 0;
-    o->keysTotal = 0;
-    for (int y = 0; y < m->h; y++)
-        for (int x = 0; x < m->w; x++)
+    o->keys = o->keysTotal = 0;
+    o->fuses = o->fusesTotal = 0;
+    for (int y = 0; y < m->h; y++) {
+        for (int x = 0; x < m->w; x++) {
             if (m->tiles[y][x] == 'K') o->keysTotal++;
+            if (m->tiles[y][x] == 'F') o->fusesTotal++;
+        }
+    }
 }
 
-bool PickUpKey(Objective *o, Map *m, Vector2 pos)
+bool ObjectiveDone(const Objective *o, const Map *m)
+{
+    return o->keys >= o->keysTotal && o->fuses >= o->fusesTotal && (!m->hasFuseBox || m->powered);
+}
+
+// Looks for a tile of this kind within 'dist' pixels of pos. Returns true and its tile coordinates if there is one.
+static bool FindTileNear(const Map *m, Vector2 pos, char kind, float dist, int *tx, int *ty)
 {
     int cx = (int)floorf(pos.x / TILE), cy = (int)floorf(pos.y / TILE);
     for (int y = cy - 1; y <= cy + 1; y++) {
         for (int x = cx - 1; x <= cx + 1; x++) {
-            if (x < 0 || y < 0 || x >= m->w || y >= m->h || m->tiles[y][x] != 'K') continue;
+            if (x < 0 || y < 0 || x >= m->w || y >= m->h || m->tiles[y][x] != kind) continue;
             Vector2 c = { (x + 0.5f) * TILE, (y + 0.5f) * TILE };
-            if (Vector2Distance(pos, c) < KEY_PICKUP_DIST) {
-                m->tiles[y][x] = '.';
-                o->keys++;
-                return true;
-            }
+            if (Vector2Distance(pos, c) < dist) { *tx = x; *ty = y; return true; }
         }
     }
     return false;
+}
+
+// Picks up the tile (it turns into floor). Returns true if there was one to pick up.
+static bool TakeTile(Map *m, Vector2 pos, char kind)
+{
+    int x, y;
+    if (!FindTileNear(m, pos, kind, KEY_PICKUP_DIST, &x, &y)) return false;
+    m->tiles[y][x] = '.';
+    return true;
+}
+
+bool PickUpKey(Objective *o, Map *m, Vector2 pos)
+{
+    if (!TakeTile(m, pos, 'K')) return false;
+    o->keys++;
+    return true;
+}
+
+bool PickUpFuse(Objective *o, Map *m, Vector2 pos)
+{
+    if (!TakeTile(m, pos, 'F')) return false;
+    o->fuses++;
+    return true;
+}
+
+bool PickUpBattery(float *battery, Map *m, Vector2 pos)
+{
+    if (*battery > BATTERY_MAX - BATTERY_PICKUP * 0.5f) return false;     // still good: leave it for later
+    if (!TakeTile(m, pos, 'B')) return false;
+    *battery += BATTERY_PICKUP;
+    if (*battery > BATTERY_MAX) *battery = BATTERY_MAX;
+    return true;
+}
+
+bool BatteryNear(const Map *m, Vector2 pos)
+{
+    int x, y;
+    return FindTileNear(m, pos, 'B', KEY_PICKUP_DIST, &x, &y);
 }
 
 // Notes are numbered in the order their 'n' tiles appear in the map: top to bottom, left to right.
@@ -65,6 +108,43 @@ bool ExitNear(const Map *m, Vector2 pos)
         for (int x = cx - 2; x <= cx + 2; x++) {
             if (x < 0 || y < 0 || x >= m->w || y >= m->h || m->tiles[y][x] != 'X') continue;
             if (Vector2Distance(pos, (Vector2){ (x + 0.5f) * TILE, (y + 0.5f) * TILE }) < ITEM_REACH) return true;
+        }
+    }
+    return false;
+}
+
+bool FuseBoxNear(const Map *m, Vector2 pos)
+{
+    int cx = (int)floorf(pos.x / TILE), cy = (int)floorf(pos.y / TILE);
+    for (int y = cy - 2; y <= cy + 2; y++) {
+        for (int x = cx - 2; x <= cx + 2; x++) {
+            if (x < 0 || y < 0 || x >= m->w || y >= m->h || m->tiles[y][x] != 'G') continue;
+            if (Vector2Distance(pos, (Vector2){ (x + 0.5f) * TILE, (y + 0.5f) * TILE }) < ITEM_REACH) return true;
+        }
+    }
+    return false;
+}
+
+// Takes the middle one of the 'X' tiles and looks for open floor next to it.
+bool ExitLightPos(const Map *m, Vector2 *out)
+{
+    int count = 0;
+    for (int y = 0; y < m->h; y++)
+        for (int x = 0; x < m->w; x++)
+            if (m->tiles[y][x] == 'X') count++;
+    if (count == 0) return false;
+
+    int want = count / 2, seen = 0;
+    for (int y = 0; y < m->h; y++) {
+        for (int x = 0; x < m->w; x++) {
+            if (m->tiles[y][x] != 'X' || seen++ != want) continue;
+            static const int dx[4] = { 0, 0, -1, 1 }, dy[4] = { 1, -1, 0, 0 };
+            for (int d = 0; d < 4; d++) {
+                if (IsSolid(m, x + dx[d], y + dy[d])) continue;
+                *out = (Vector2){ (x + dx[d] + 0.5f) * TILE, (y + dy[d] + 0.5f) * TILE };
+                return true;
+            }
+            return false;
         }
     }
     return false;

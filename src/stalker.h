@@ -25,9 +25,12 @@ typedef struct {
     bool         sawPlayer;     // could it see you last frame?
     bool         knowsHiding;   // it watched you climb into a locker
     bool         prevHidden;    // were you hidden last frame?
+    float        speedMul;      // 1.0 = chapter 1 speeds; later chapters make it faster
 } Stalker;
 
 void        StalkerInit(Stalker *s, const Map *m);
+void        StalkerSetSpeed(Stalker *s, float mul);                 // multiplies all its walking speeds
+void        StalkerAlert(Stalker *s, const Map *m, Vector2 where);  // a loud noise at 'where': it goes to look (unless it is already chasing)
 // Returns true if the stalker caught the player this frame.
 bool        StalkerUpdate(Stalker *s, const Map *m, const Player *p, float dt);
 const char *StalkerStateName(const Stalker *s);

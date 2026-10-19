@@ -12,7 +12,7 @@ static int tileSize = 16, spacing = 0, margin = 0;      // how the picture is la
 static int cols = 0, rows = 0;                          // how many tiles it holds
 static int slot[T_COUNT];                               // which sheet tile draws each thing (-1 = not set)
 static int page = 0;                                    // current page of the browser
-static const char *names[T_COUNT] = { "floor1", "floor2", "wall", "locker", "key", "note", "exit", "player", "stalker" };
+static const char *names[T_COUNT] = { "floor1", "floor2", "wall", "locker", "key", "note", "exit", "player", "stalker", "battery", "fuse", "fusebox", "table" };
 
 // Removes spaces at both ends of a string, in place.
 static void Trim(char *s)
@@ -93,7 +93,7 @@ bool TilesLoad(void)
     return true;
 }
 
-bool TileDraw(TileId id, float x, float y, bool flipX)
+bool TileDrawEx(TileId id, Rectangle dst, Color tint, bool flipX)
 {
     if (!loaded || slot[id] < 0 || slot[id] >= cols * rows) return false;
     int i = slot[id];
@@ -101,8 +101,13 @@ bool TileDraw(TileId id, float x, float y, bool flipX)
                       (float)(margin + (i / cols) * (tileSize + spacing)),
                       (float)tileSize, (float)tileSize };
     if (flipX) src.width = -src.width;                  // a negative width mirrors the sprite
-    DrawTexturePro(sheet, src, (Rectangle){ x, y, (float)TILE, (float)TILE }, (Vector2){ 0, 0 }, 0.0f, WHITE);
+    DrawTexturePro(sheet, src, dst, (Vector2){ 0, 0 }, 0.0f, tint);
     return true;
+}
+
+bool TileDraw(TileId id, float x, float y, bool flipX)
+{
+    return TileDrawEx(id, (Rectangle){ x, y, (float)TILE, (float)TILE }, WHITE, flipX);
 }
 
 void TilesBrowser(void)

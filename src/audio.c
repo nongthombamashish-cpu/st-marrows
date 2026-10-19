@@ -343,6 +343,9 @@ void AudioLocker(void)     { if (A.ready) PoolPlay(&A.locker, 0.7f, 0.0f, 0.92f 
 void AudioLockedDoor(void) { if (A.ready) PoolPlay(&A.lockedDoor, 0.8f, 0.0f, 1.0f); }
 void AudioSting(void)      { if (A.ready) PoolPlay(&A.sting, 1.0f, 0.0f, 1.0f); }
 void AudioComplete(void)   { if (A.ready) PoolPlay(&A.complete, 0.9f, 0.0f, 1.0f); }
+void AudioBattery(void)    { if (A.ready) PoolPlay(&A.chime, 0.7f, 0.0f, 0.62f); }          // the key chime, lower
+void AudioFlashlightDead(void) { if (A.ready) PoolPlay(&A.lockedDoor, 0.55f, 0.0f, 1.7f); } // the "no" rattle, higher
+void AudioPowerOn(void)    { if (A.ready) PoolPlay(&A.complete, 0.9f, 0.0f, 0.55f); }       // the chapter arpeggio, deep
 
 // Footsteps, heartbeat, drone and the chase alert, driven by what the stalker is doing.
 void AudioUpdate(const Player *p, const Stalker *s, bool playing, float dt)

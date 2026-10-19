@@ -1,0 +1,24 @@
+; St. Marrow's - Mode 1, Chapter 2 (Surgery Wing) notes.  PLACEHOLDER story text: rewrite freely.
+; Format: first line = title, the lines after it = the text. A line with only --- ends a note.
+; Notes are numbered by where their 'n' tile sits in the map: top to bottom, left to right.
+;   1 = staff room (north-west)   2 = elevator lobby   3 = Theatre 1   4 = start (south-west corner)
+
+WHITEBOARD: BATTERIES
+Torch batteries are nearly gone. Whoever finds one, keep it for the dark parts.
+It does not need to see you. It only needs a light to follow.
+Off in the corridors, on in the rooms. Or the other way round. Nobody agrees which is worse.
+---
+ELEVATOR SERVICE TAG
+Car B. One stop: down.
+The panel has no floor numbers. Someone scratched a name into the plate: MR. A.
+If the car ever arrives, do not wait for the doors to open twice.
+---
+THEATRE 1: OPERATION RECORD
+Surgeon: Mr. A. Assistants: none.
+The lights failed at 2:00. When they came back the table was empty and Mr. A was washing his hands.
+He said the patient would walk again. He did not say where.
+---
+WING B: POWER NOTICE
+The surgery wing runs on one fuse box, in the boiler room on the east side.
+Three fuses were pulled and hidden: the sterilising room, the pharmacy, Theatre 1.
+The elevator will not move without power. When the breaker catches, the whole wing will hear it.

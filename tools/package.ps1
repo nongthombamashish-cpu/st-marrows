@@ -22,8 +22,10 @@ St. Marrow's v$version
 
 If Windows says "Windows protected your PC": click More info, then Run anyway.
 
-Goal: find the 3 keys, then unlock the exit at the east end of the corridor.
-Controls: WASD move | Shift run (loud) | Mouse aim flashlight | F flashlight | E read / hide / unlock | M mute | R restart | Esc pause menu
+Goal: get out of each wing alive.
+  Chapter 1 (Ward A): find the 3 keys, then unlock the exit.
+  Chapter 2 (Surgery Wing): find the 3 fuses, put them in the fuse box to restore the power, then take the elevator. Your flashlight battery runs down: find spares.
+Controls: WASD move | Shift run (loud) | Mouse aim flashlight | F flashlight | E read / hide / use | M mute | R restart | Esc pause menu
 "@ | Set-Content (Join-Path $stage "HOW_TO_PLAY.txt")
 
 Compress-Archive -Path $stage -DestinationPath (Join-Path $dist "$name.zip")

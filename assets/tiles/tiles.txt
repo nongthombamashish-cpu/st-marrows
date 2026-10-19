@@ -14,3 +14,8 @@ note = 65
 exit = 46
 player = 85
 stalker = 121
+; Chapter 2 things (battery = blue potion, fuse = red-tipped tube, fusebox = grey machine, table = table / bed / shelf):
+battery = 116
+fuse = 127
+fusebox = 55
+table = 72

@@ -23,6 +23,9 @@ void AudioLocker(void);               // climbing into / out of a locker
 void AudioLockedDoor(void);           // the exit is locked
 void AudioSting(void);                // the stalker caught you
 void AudioComplete(void);             // chapter complete
+void AudioBattery(void);              // battery picked up
+void AudioFlashlightDead(void);       // the flashlight has no battery left
+void AudioPowerOn(void);              // the fuse box catches: power restored
 
 // The sounds themselves (also used by the tests). The caller frees a Wave with UnloadWave.
 Wave SynthStep(float freq);

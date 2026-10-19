@@ -17,6 +17,8 @@ typedef struct {
     bool    hasStalker;
     Vector2 waypoint[MAX_WAYPOINTS];     // '1'..'9' (x < 0 = not placed)
     int     waypointCount;               // highest waypoint number found
+    bool    hasFuseBox;                  // the map has a 'G' (the exit needs power)
+    bool    powered;                     // the fuse box has been filled: the elevator works
 } Map;
 
 bool LoadMap(Map *m, const char *path);

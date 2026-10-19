@@ -7,6 +7,8 @@ void PlayerInit(Player *p, Vector2 start)
     p->pos = start;
     p->half = 5.0f;
     p->flashlight = true;
+    p->battery = BATTERY_MAX;
+    p->usesBattery = false;
     p->moving = false;
     p->running = false;
     p->hidden = false;
@@ -33,7 +35,14 @@ void PlayerUpdate(Player *p, const Map *m, float dt)
     float speed = p->running ? PLAYER_RUN : PLAYER_WALK;
     MoveBox(m, &p->pos, p->half, Vector2Scale(dir, speed * dt));
 
-    if (IsKeyPressed(KEY_F)) p->flashlight = !p->flashlight;
+    if (IsKeyPressed(KEY_F)) {
+        if (p->flashlight) p->flashlight = false;
+        else if (!p->usesBattery || p->battery > 0.0f) p->flashlight = true;     // a dead flashlight stays off
+    }
+    if (p->usesBattery && p->flashlight) {                                         // the light costs charge
+        p->battery -= BATTERY_DRAIN * dt;
+        if (p->battery <= 0.0f) { p->battery = 0.0f; p->flashlight = false; }
+    }
 }
 
 float PlayerNoise(const Player *p)

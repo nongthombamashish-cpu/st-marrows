@@ -4,7 +4,7 @@
 
 ![Preview](docs/preview.png)
 
-- **Mode 1** (in progress): 5 chapters, one hospital wing each. More modes later.
+- **Mode 1** (in progress): 5 chapters, one hospital wing each (Chapters 1-2 playable). More modes later.
 - **Lore:** the hospital was made by Mr. A.
 - **Platform:** Windows 64-bit.
 
@@ -13,6 +13,16 @@
 ## Chapter 1 goal
 
 Find the 3 keys scattered through the wards, then unlock the exit at the east end of the main corridor (press E at the door). Notes (`n` tiles) can be read with E; the stalker keeps hunting while you read. The story text is placeholder: rewrite it in `assets/notes/mode1_ch1.txt`.
+
+## Chapter 2 goal (Surgery Wing)
+
+Find the 3 fuses (sterilising room, pharmacy, Theatre 1), put them in the fuse box in the boiler room on the east side (press E), then run to the elevator in the north-west corner and press E. New in this chapter:
+
+- **Flashlight battery.** It drains while the light is on (bar at the bottom left). Under 25% the beam gets shorter, under 12% it flickers, at 0 it dies. Walk over a battery (`B`) to recharge it; you only pick one up when it would not be wasted, so the spare waits for you. Tune it in `src/config.h` (`BATTERY_*`).
+- **The fuse box is loud.** When you put the fuses in, the stalker hears it and goes to look at the spot where you stood. The wing switches to red emergency light and the elevator glows.
+- **A faster stalker** (12% faster; `stalkerSpeed` in `src/chapters.h`).
+
+**Chapters and progress:** finishing a chapter unlocks the next one (saved on line 2 of `settings.txt`). On the title screen use W/S to pick the *Chapter* row and A/D to change it. Press **F3** (debug) on the title screen to open every chapter for testing.
 
 ## How the stalker works
 
@@ -53,7 +63,8 @@ src/map.c/.h      tile map: loading, collision, line of sight, drawing
 src/path.c/.h     route finding on the tile grid (breadth-first search)
 src/player.c/.h   input, movement, noise, hiding
 src/stalker.c/.h  the stalker's state machine
-src/items.c/.h    keys, notes, the exit door
+src/items.c/.h    keys, fuses, batteries, notes, the fuse box, the exit door
+src/chapters.h    the list of chapters: map, notes, stalker speed, battery on/off
 src/light.c/.h    lights and shadows (walls block light)
 assets/maps/      levels as plain text: edit them in VS Code
 assets/notes/     the text of the notes you find (plain text)
@@ -63,7 +74,7 @@ tools/package.ps1 builds the release zip
 VERSION           version used in the zip name
 ```
 
-Map legend: `#` wall · `.` floor · `L` locker · `P` player start · `S` stalker start · `1`-`9` stalker patrol points (visited in order) · `K` key · `n` note (numbered top to bottom, left to right, matching the notes file) · `X` locked exit door. Lines starting with `;` are comments.
+Map legend: `#` wall · `.` floor · `L` locker · `P` player start · `S` stalker start · `1`-`9` stalker patrol points (visited in order) · `K` key · `F` fuse · `G` fuse box · `B` battery · `T` table, bed or shelf (blocks movement and light) · `n` note (numbered top to bottom, left to right, matching the notes file) · `X` locked exit door. Lines starting with `;` are comments.
 
 ## Architecture
 
@@ -85,8 +96,9 @@ Map legend: `#` wall · `.` floor · `L` locker · `P` player start · `S` stalk
 - [x] **M5** Keys, locked exit, notes, objective (locked room doors can come later)
 - [x] **M6a** Audio: drone, footsteps, heartbeat, pickups (made in code, placeholders)
 - [x] **M6b** Title menu, pause, volume (saved in `settings.txt`)
-- [ ] **M6c** Art pass with CC0 tiles and sprites
-- [ ] **M7-M10** Chapters 2-5, one new mechanic each
+- [x] **M6c** Art pass: Kenney's Tiny Dungeon (CC0), set up in assets/tiles/tiles.txt
+- [x] **M7** Chapter 2, Surgery Wing: flashlight battery, fuses and a fuse box, a faster stalker; chapter select and progress
+- [ ] **M8-M10** Chapters 3-5, one new mechanic each
 - [ ] **M11** Polish: settings, controller, performance. **Release v1.0 (Mode 1 complete)**
 
 ## Publish on GitHub

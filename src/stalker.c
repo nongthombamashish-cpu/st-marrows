@@ -61,6 +61,21 @@ void StalkerInit(Stalker *s, const Map *m)
     s->facing = PI;
     s->state = ST_PATROL;
     s->wp = -1;
+    s->speedMul = 1.0f;
+}
+
+void StalkerSetSpeed(Stalker *s, float mul)
+{
+    s->speedMul = mul;
+}
+
+void StalkerAlert(Stalker *s, const Map *m, Vector2 where)
+{
+    if (!s->active || s->state == ST_CHASE) return;
+    s->state = ST_INVESTIGATE;
+    s->target = where;
+    s->timer = 0;
+    GoTo(s, m, where);
 }
 
 bool StalkerUpdate(Stalker *s, const Map *m, const Player *p, float dt)
@@ -107,14 +122,14 @@ bool StalkerUpdate(Stalker *s, const Map *m, const Player *p, float dt)
     // Act.
     switch (s->state) {
     case ST_PATROL:
-        if (!FollowPath(s, STALKER_PATROL_SPEED, dt)) { s->timer = 0; break; }
+        if (!FollowPath(s, STALKER_PATROL_SPEED * s->speedMul, dt)) { s->timer = 0; break; }
         s->timer += dt;                               // at a patrol point: look around, then move on
         s->facing += 0.9f * dt;
         if (s->timer > 1.5f) { s->timer = 0; NextWaypoint(s, m); }
         break;
 
     case ST_INVESTIGATE:
-        if (!FollowPath(s, STALKER_INVESTIGATE_SPEED, dt)) { s->timer = 0; break; }
+        if (!FollowPath(s, STALKER_INVESTIGATE_SPEED * s->speedMul, dt)) { s->timer = 0; break; }
         s->timer += dt;                               // reached the noise: look around, then give up
         s->facing += 1.2f * dt;
         if (s->timer > 2.0f) ResumePatrol(s, m);
@@ -125,14 +140,14 @@ bool StalkerUpdate(Stalker *s, const Map *m, const Player *p, float dt)
         if (!sees) s->timer += dt;                    // lost sight: keep running to where it last saw you
         if (sees && dist < 48.0f && dist > 0.001f) {  // close and visible: run straight at the player
             Vector2 dir = Vector2Scale(toPlayer, 1.0f / dist);
-            MoveBox(m, &s->pos, 5.0f, Vector2Scale(dir, STALKER_CHASE_SPEED * dt));
+            MoveBox(m, &s->pos, 5.0f, Vector2Scale(dir, STALKER_CHASE_SPEED * s->speedMul * dt));
             s->facing = atan2f(dir.y, dir.x);
             s->repath = 0;
             arrived = false;
         } else {
             s->repath -= dt;
             if (s->repath <= 0) { GoTo(s, m, s->target); s->repath = 0.25f; }
-            arrived = FollowPath(s, STALKER_CHASE_SPEED, dt);
+            arrived = FollowPath(s, STALKER_CHASE_SPEED * s->speedMul, dt);
         }
         if (!sees && (arrived || s->timer > 4.0f)) { s->state = ST_SEARCH; s->timer = 0; }
         break;
