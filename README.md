@@ -4,7 +4,7 @@
 
 ![Preview](docs/preview.png)
 
-- **Mode 1** (in progress): 5 chapters, one hospital wing each (Chapters 1-3 playable). More modes later.
+- **Mode 1** (in progress): 5 chapters, one hospital wing each (Chapters 1-4 playable). More modes later.
 - **Lore:** the hospital was made by Mr. A.
 - **Platform:** Windows 64-bit.
 
@@ -32,6 +32,15 @@ Find the 3 patient files (the clerks' office, the stacks, the incinerator), then
 - **The archive stacks:** a big hall of shelves with 2-wide aisles and loops, good for pulling the stalker away with a bottle and slipping past.
 - **A faster stalker** (20% faster than Chapter 1), and the flashlight battery carries over from Chapter 2.
 
+## Chapter 4 goal (Security Wing)
+
+Find the 3 access cards (the west cells, the server room, the break room), then open the control room door at the top (press E at it). New in this chapter:
+
+- **Security cameras** (`>` `v` `<` `^` in the map file). They hang from the ceiling, swing left and right, and **see in the dark**. The cone of light shows where each one is looking. If a camera keeps you in view for about 0.8 s the alarm rings and the stalker goes to where you were (a red edge closes in on the screen as the camera fills up). After an alarm no camera can ring again for 8 s.
+- **Ways past them:** wait for the beam to swing away and cross in the gap, hide in a locker (they cannot see in), or **break a camera**: select a bottle and throw it so it shatters right next to the camera.
+- **A faster stalker** (22% faster than Chapter 1). Battery and inventory carry over.
+- Tune the cameras in `src/config.h` (`CAM_*`) and the stalker's speed in `src/chapters.h`.
+
 ## Inventory
 
 From Chapter 2 on, a row of slots (the hotbar) sits at the bottom of the screen. Walk over an item to pick it up; items of one kind stack in a slot. **1-6** or the **mouse wheel** select a slot, **click** uses the selected item (the line above the hotbar says what a click does). If the inventory is full, the item stays on the floor until you free a slot. It starts empty in every chapter.
@@ -40,6 +49,8 @@ From Chapter 2 on, a row of slots (the hotbar) sits at the bottom of the screen.
 | ------- | -------- | ----- | ----------------------------------- |
 | Battery | `B`      | 3     | loads it into the flashlight (+40%) |
 | Bottle  | `o`      | 5     | throws it where you aim             |
+
+**Things you must collect** to open the exit (keys, fuses, patient files, access cards) are a separate table, `COLLECTIBLES` in `src/items.c`: add a name to `Collect` in `src/items.h`, a row to the table, and put its map character on a map.
 
 **Adding a new item** takes three steps (the table in `src/inventory.c` does the rest: picking up, stacking, the hotbar, drawing it on the map):
 
@@ -90,6 +101,7 @@ src/player.c/.h   input, movement, noise, hiding
 src/stalker.c/.h  the stalker's state machine
 src/items.c/.h    keys, fuses, files, picking up items, notes, the fuse box, the exit door
 src/inventory.c/.h  the inventory (hotbar) and the item table
+src/cameras.c/.h    security cameras: sweeping, seeing you, the alarm, breaking
 src/throw.c/.h    throwing bottles: flight, where it lands, the shatter effect
 src/chapters.h    the list of chapters: map, notes, stalker speed, battery on/off
 src/light.c/.h    lights and shadows (walls block light)
@@ -101,7 +113,7 @@ tools/package.ps1 builds the release zip
 VERSION           version used in the zip name
 ```
 
-Map legend: `#` wall · `.` floor · `L` locker · `P` player start · `S` stalker start · `1`-`9` stalker patrol points (visited in order) · `K` key · `R` patient file · `o` bottle · `H` archive shelf · `F` fuse · `G` fuse box · `T` table, bed or shelf (blocks movement and light) · `n` note (numbered top to bottom, left to right, matching the notes file) · `X` locked exit door. Lines starting with `;` are comments.
+Map legend: `#` wall · `.` floor · `L` locker · `P` player start · `S` stalker start · `1`-`9` stalker patrol points (visited in order) · `K` key · `A` access card · `>` `v` `<` `^` ceiling camera (the way it looks) · `R` patient file · `o` bottle · `H` archive shelf · `F` fuse · `G` fuse box · `T` table, bed or shelf (blocks movement and light) · `n` note (numbered top to bottom, left to right, matching the notes file) · `X` locked exit door. Lines starting with `;` are comments.
 
 ## Architecture
 
@@ -126,7 +138,8 @@ Map legend: `#` wall · `.` floor · `L` locker · `P` player start · `S` stalk
 - [x] **M6c** Art pass: Kenney's Tiny Dungeon (CC0), set up in assets/tiles/tiles.txt
 - [x] **M7** Chapter 2, Surgery Wing: flashlight battery, fuses and a fuse box, a faster stalker; chapter select and progress
 - [x] **M8** Chapter 3, Records Basement: throwable bottles that draw the stalker, the archive stacks
-- [ ] **M9-M10** Chapters 4-5, one new mechanic each
+- [x] **M9** Chapter 4, Security Wing: ceiling cameras that see in the dark and ring an alarm
+- [ ] **M10** Chapter 5, the finale
 - [ ] **M11** Polish: settings, controller, performance. **Release v1.0 (Mode 1 complete)**
 
 ## Publish on GitHub

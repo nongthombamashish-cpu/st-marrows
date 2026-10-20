@@ -38,6 +38,16 @@
 #define THROW_SPEED          300.0f  // how fast a bottle flies (pixels per second)
 #define THROW_NOISE_RADIUS   420.0f  // the stalker hears a shattering bottle this close
 
+// Security cameras (Chapter 4): they hang from the ceiling, sweep a cone of view, and see in the dark
+#define CAM_RANGE            150.0f  // how far they see (pixels)
+#define CAM_FOV               22.0f  // half-width of the cone they see (degrees)
+#define CAM_SWEEP             45.0f  // how far they swing left and right of their direction (degrees)
+#define CAM_SWEEP_PERIOD       6.0f  // seconds for one full swing there and back
+#define CAM_DETECT_TIME        0.8f  // seconds in view before the alarm rings
+#define CAM_DECAY              0.8f  // how fast that empties again once you are out of view (per second)
+#define CAM_ALARM_TIME         8.0f  // after an alarm no camera can ring again for this long
+#define CAM_BREAK_DIST        24.0f  // a bottle that shatters this close to a camera breaks it
+
 // Stalker (pixels per second / pixels)
 #define STALKER_PATROL_SPEED       30.0f
 #define STALKER_INVESTIGATE_SPEED  44.0f

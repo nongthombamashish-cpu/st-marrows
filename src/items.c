@@ -3,23 +3,51 @@
 #include <math.h>
 #include <string.h>
 
+// ---- The collectibles table: one row per kind ----
+static const CollectInfo COLLECTIBLES[COLLECT_COUNT] = {
+    [COLLECT_KEY]  = { 'K', "Key",          "keys",          T_KEY,  { 230, 190,  70, 255 } },
+    [COLLECT_FUSE] = { 'F', "Fuse",         "fuses",         T_FUSE, { 214,  96,  74, 255 } },
+    [COLLECT_FILE] = { 'R', "Patient file", "patient files", T_FILE, { 226, 214, 170, 255 } },
+    [COLLECT_CARD] = { 'A', "Access card",  "access cards",  T_CARD, { 120, 180, 230, 255 } },
+};
+
+const CollectInfo *CollectGet(Collect c)
+{
+    if (c < 0 || c >= COLLECT_COUNT) c = COLLECT_KEY;
+    return &COLLECTIBLES[c];
+}
+
+Collect CollectFromMapChar(char c)
+{
+    for (int i = 0; i < COLLECT_COUNT; i++)
+        if (COLLECTIBLES[i].mapChar == c) return (Collect)i;
+    return COLLECT_COUNT;
+}
+
+void CollectDraw(Collect c, float x, float y)
+{
+    const CollectInfo *it = CollectGet(c);
+    if (TileDraw(it->tile, x, y, false)) return;
+    DrawRectangle((int)x + 5, (int)y + 3, 6, 10, it->color);                   // a plain little shape
+    DrawRectangleLines((int)x + 5, (int)y + 3, 6, 10, (Color){ 40, 40, 40, 255 });
+}
+
 void ObjectiveInit(Objective *o, const Map *m)
 {
-    o->keys = o->keysTotal = 0;
-    o->fuses = o->fusesTotal = 0;
-    o->files = o->filesTotal = 0;
+    for (int i = 0; i < COLLECT_COUNT; i++) o->got[i] = o->total[i] = 0;
     for (int y = 0; y < m->h; y++) {
         for (int x = 0; x < m->w; x++) {
-            if (m->tiles[y][x] == 'K') o->keysTotal++;
-            if (m->tiles[y][x] == 'F') o->fusesTotal++;
-            if (m->tiles[y][x] == 'R') o->filesTotal++;
+            Collect c = CollectFromMapChar(m->tiles[y][x]);
+            if (c != COLLECT_COUNT) o->total[c]++;
         }
     }
 }
 
 bool ObjectiveDone(const Objective *o, const Map *m)
 {
-    return o->keys >= o->keysTotal && o->fuses >= o->fusesTotal && o->files >= o->filesTotal && (!m->hasFuseBox || m->powered);
+    for (int i = 0; i < COLLECT_COUNT; i++)
+        if (o->got[i] < o->total[i]) return false;
+    return !m->hasFuseBox || m->powered;
 }
 
 // Looks for a tile of this kind within 'dist' pixels of pos. Returns true and its tile coordinates if there is one.
@@ -45,25 +73,15 @@ static bool TakeTile(Map *m, Vector2 pos, char kind)
     return true;
 }
 
-bool PickUpKey(Objective *o, Map *m, Vector2 pos)
+bool PickUpCollectible(Objective *o, Map *m, Vector2 pos, Collect *which)
 {
-    if (!TakeTile(m, pos, 'K')) return false;
-    o->keys++;
-    return true;
-}
-
-bool PickUpFuse(Objective *o, Map *m, Vector2 pos)
-{
-    if (!TakeTile(m, pos, 'F')) return false;
-    o->fuses++;
-    return true;
-}
-
-bool PickUpFile(Objective *o, Map *m, Vector2 pos)
-{
-    if (!TakeTile(m, pos, 'R')) return false;
-    o->files++;
-    return true;
+    for (int i = 0; i < COLLECT_COUNT; i++) {
+        if (!TakeTile(m, pos, COLLECTIBLES[i].mapChar)) continue;
+        o->got[i]++;
+        *which = (Collect)i;
+        return true;
+    }
+    return false;
 }
 
 ItemId PickUpItem(Inventory *inv, Map *m, Vector2 pos)

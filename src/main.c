@@ -25,6 +25,7 @@
 #include "chapters.h"
 #include "throw.h"
 #include "inventory.h"
+#include "cameras.h"
 
 #define SETTINGS_FILE "settings.txt"                // saved next to the game: the volume (0-10) and how many chapters are unlocked
 #define TITLE_CREDIT  "Made by Mr. A   |   Art: Kenney (CC0)"
@@ -111,20 +112,20 @@ static void SaveSettings(int volume, int unlocked)
 // The yellow line at the top: what to do next.
 static const char *GoalText(const Objective *o, const Map *m, const Chapter *ch)
 {
-    if (o->keys < o->keysTotal)       return TextFormat("Find the keys: %d/%d", o->keys, o->keysTotal);
-    if (o->fuses < o->fusesTotal)     return TextFormat("Find the fuses: %d/%d", o->fuses, o->fusesTotal);
-    if (o->files < o->filesTotal)     return TextFormat("Find the patient files: %d/%d", o->files, o->filesTotal);
+    for (int i = 0; i < COLLECT_COUNT; i++)                            // keys, fuses, files, cards: whatever is still missing
+        if (o->got[i] < o->total[i]) return TextFormat("Find the %s: %d/%d", CollectGet((Collect)i)->plural, o->got[i], o->total[i]);
     if (m->hasFuseBox && !m->powered) return "Put the fuses in the fuse box to restore the power.";
     if (m->hasFuseBox)                return "The power is on. Get to the elevator before it finds you.";
     return ch->allDone;
 }
 
 // Why the exit will not open yet: the long version (a message) and the short one (the prompt near the door).
-static const char *LockedText(const Objective *o, bool shortForm)
+static const char *LockedText(const Objective *o, const Chapter *ch, bool shortForm)
 {
-    if (o->keys < o->keysTotal)   return shortForm ? "The exit is locked"  : TextFormat("The exit is locked.  Keys: %d/%d", o->keys, o->keysTotal);
-    if (o->files < o->filesTotal) return shortForm ? "The vault is sealed" : TextFormat("The vault is sealed.  Patient files: %d/%d", o->files, o->filesTotal);
-    return shortForm ? "The elevator has no power" : "The elevator is dead.  Restore the power first.";
+    if (shortForm) return ch->locked;
+    for (int i = 0; i < COLLECT_COUNT; i++)
+        if (o->got[i] < o->total[i]) return TextFormat("%s.  (%d/%d %s)", ch->locked, o->got[i], o->total[i], CollectGet((Collect)i)->plural);
+    return TextFormat("%s.  Restore the power first.", ch->locked);    // only the fuse box can still be missing
 }
 
 // Left click: use whatever is in the selected slot. A new item = a new 'case' here (see inventory.h).
@@ -157,7 +158,7 @@ static void UseSelected(Player *player, Throw *thrown, const Map *map, Vector2 a
 }
 
 // Loads a chapter's map and notes, and puts the player and the stalker at the start. False if the map file is missing.
-static bool LoadChapter(int chapter, Map *map, Note *notes, int *noteCount, Objective *obj, Player *player, Stalker *stalker)
+static bool LoadChapter(int chapter, Map *map, Note *notes, int *noteCount, Objective *obj, Player *player, Stalker *stalker, Cams *cams)
 {
     const Chapter *ch = &CHAPTERS[chapter];
     if (!LoadMap(map, ch->map)) return false;
@@ -167,6 +168,7 @@ static bool LoadChapter(int chapter, Map *map, Note *notes, int *noteCount, Obje
     player->usesBattery = ch->battery;
     StalkerInit(stalker, map);
     StalkerSetSpeed(stalker, ch->stalkerSpeed);
+    CamsInit(cams, map);
     return true;
 }
 
@@ -250,8 +252,9 @@ int main(void)
     Stalker stalker;
     Objective obj;
     Throw thrown;                      // the bottle in the air (Chapter 3)
+    Cams cams;                         // the security cameras (Chapter 4)
     int chapter = 0;                   // the chapter selected on the title screen / being played (0 = chapter 1)
-    if (!LoadChapter(chapter, &map, notes, &noteCount, &obj, &player, &stalker)) {
+    if (!LoadChapter(chapter, &map, notes, &noteCount, &obj, &player, &stalker, &cams)) {
         while (!WindowShouldClose() && !IsKeyPressed(KEY_ESCAPE)) {
             BeginDrawing();
             ClearBackground(BLACK);
@@ -340,20 +343,13 @@ int main(void)
                         AudioFlashlightDead();
                     }
                 }
-                if (!player.hidden && PickUpKey(&obj, &map, player.pos)) {
-                    TextCopy(toast, TextFormat("Key found  (%d/%d)", obj.keys, obj.keysTotal));
-                    toastTime = 2.5f;
-                    AudioChime();
-                }
-                if (!player.hidden && PickUpFuse(&obj, &map, player.pos)) {
-                    TextCopy(toast, TextFormat("Fuse found  (%d/%d)", obj.fuses, obj.fusesTotal));
-                    toastTime = 2.5f;
-                    AudioChime();
-                }
-                if (!player.hidden && PickUpFile(&obj, &map, player.pos)) {
-                    TextCopy(toast, TextFormat("Patient file found  (%d/%d)", obj.files, obj.filesTotal));
-                    toastTime = 2.5f;
-                    AudioChime();
+                if (!player.hidden) {                                    // keys, fuses, files, cards: walk over one to collect it
+                    Collect found;
+                    if (PickUpCollectible(&obj, &map, player.pos, &found)) {
+                        TextCopy(toast, TextFormat("%s found  (%d/%d)", CollectGet(found)->name, obj.got[found], obj.total[found]));
+                        toastTime = 2.5f;
+                        AudioChime();
+                    }
                 }
                 if (!player.hidden) {                                    // batteries, bottles ...: walk over an item to pick it up
                     ItemId got = PickUpItem(&player.inv, &map, player.pos);
@@ -378,14 +374,14 @@ int main(void)
                         if (map.powered) {
                             TextCopy(toast, "The power is already on.");
                             toastTime = 2.0f;
-                        } else if (obj.fuses >= obj.fusesTotal) {         // the breaker catches: loud. The stalker goes to look.
+                        } else if (obj.got[COLLECT_FUSE] >= obj.total[COLLECT_FUSE]) {   // the breaker catches: loud. The stalker goes to look.
                             map.powered = true;
                             StalkerAlert(&stalker, &map, player.pos);
                             TextCopy(toast, "Power restored.  The whole wing heard that.");
                             toastTime = 4.0f;
                             AudioPowerOn();
                         } else {
-                            TextCopy(toast, TextFormat("The fuse box needs %d fuses.  You have %d.", obj.fusesTotal, obj.fuses));
+                            TextCopy(toast, TextFormat("The fuse box needs %d fuses.  You have %d.", obj.total[COLLECT_FUSE], obj.got[COLLECT_FUSE]));
                             toastTime = 2.5f;
                             AudioLockedDoor();
                         }
@@ -398,7 +394,7 @@ int main(void)
                                 SaveSettings(volume, unlocked);
                             }
                         } else {
-                            TextCopy(toast, LockedText(&obj, false));
+                            TextCopy(toast, LockedText(&obj, &CHAPTERS[chapter], false));
                             toastTime = 2.5f;
                             AudioLockedDoor();
                         }
@@ -415,6 +411,18 @@ int main(void)
                 float dist = Vector2Distance(landed, player.pos);
                 AudioGlass(Clamp(1.0f - dist / 700.0f, 0.25f, 1.0f), Clamp((landed.x - player.pos.x) / 160.0f, -1.0f, 1.0f));
                 if (Vector2Distance(stalker.pos, landed) < THROW_NOISE_RADIUS) StalkerAlert(&stalker, &map, landed);
+                if (CamsBreakNear(&cams, landed)) {                  // a bottle shattered right next to a camera
+                    TextCopy(toast, "Camera destroyed.");
+                    toastTime = 2.5f;
+                    AudioCameraBreak();
+                }
+            }
+            Vector2 seenAt;                                          // security cameras: if one rings the alarm, the stalker goes to where it saw you
+            if (state != GS_COMPLETE && CamsUpdate(&cams, &map, player.pos, player.hidden, dt, &seenAt)) {
+                StalkerAlert(&stalker, &map, seenAt);
+                TextCopy(toast, "ALARM!  A camera saw you.");
+                toastTime = 3.0f;
+                AudioAlarm();
             }
             if (state != GS_COMPLETE && StalkerUpdate(&stalker, &map, &player, dt)) { state = GS_CAUGHT; AudioSting(); }
         } else if (state == GS_MENU || state == GS_PAUSED) {
@@ -451,7 +459,7 @@ int main(void)
         }
 
         if (startRun) {
-            if (LoadChapter(chapter, &map, notes, &noteCount, &obj, &player, &stalker)) {   // reloads the map, so keys, fuses and batteries are back
+            if (LoadChapter(chapter, &map, notes, &noteCount, &obj, &player, &stalker, &cams)) {   // reloads the map, so everything you collected is back
                 runTime = 0;
                 openNote = -1;
                 ThrowInit(&thrown);
@@ -507,6 +515,7 @@ int main(void)
                 if (beamOn) AddLight(&lights, mask, &map, cam, lights.beam, player.pos, range, aimDeg);
             }
         }
+        CamsLights(&cams, &lights, mask, &map, cam, player.pos);           // each camera's cone of view is lit
         if (map.powered) {                                   // the elevator glows once it has power (only drawn when it is near)
             Vector2 lamp;
             if (ExitLightPos(&map, &lamp) && Vector2Distance(lamp, player.pos) < 380.0f)
@@ -520,6 +529,7 @@ int main(void)
                 // You only see the stalker, keys and notes if there is a clear line to them (hiding: you peek out of the locker door).
                 Vector2 eyes = player.hidden ? player.exitPos : player.pos;
                 DrawMap(&map, cam, eyes);
+                CamsDraw(&cams);
                 if (HasLineOfSight(&map, eyes, stalker.pos)) DrawStalker(&stalker);
                 if (!player.hidden && !TileDraw(T_PLAYER, player.pos.x - TILE / 2.0f, player.pos.y - TILE / 2.0f, aim.x < 0)) {
                     DrawCircleV(player.pos, player.half, (Color){ 225, 205, 160, 255 });
@@ -545,6 +555,12 @@ int main(void)
                      12, 10, 16, (Color){ 200, 200, 200, 170 });
             DrawText(GoalText(&obj, &map, &CHAPTERS[chapter]), 12, 34, 20, (Color){ 235, 205, 110, 235 });
 
+            float watched = CamsSeen(&cams);                 // a red edge closes in while a camera is watching you
+            if (watched > 0.0f)
+                DrawRectangleLinesEx((Rectangle){ 0, 0, (float)sw, (float)sh }, 6.0f + 22.0f * watched, Fade((Color){ 220, 30, 30, 255 }, 0.25f + 0.5f * watched));
+            if (cams.alarm > 0.0f && fmodf(now, 0.6f) < 0.35f)
+                DrawText("ALARM", (sw - MeasureText("ALARM", 32)) / 2, 70, 32, (Color){ 235, 60, 50, 255 });
+
             if (player.usesBattery) {                       // flashlight battery: a bar that turns yellow, then red and blinking
                 float charge = player.battery / BATTERY_MAX;
                 Color bc = (charge > BATTERY_DIM_AT) ? (Color){ 110, 220, 130, 235 }
@@ -565,9 +581,9 @@ int main(void)
                 if (player.hidden)                              prompt = "Hiding...   press E to climb out";
                 else if (NoteNear(&map, player.pos) >= 0)       prompt = "E   read note";
                 else if (FuseBoxNear(&map, player.pos))         prompt = map.powered ? "The power is on"
-                                                                       : (obj.fuses >= obj.fusesTotal) ? "E   put in the fuses  (loud!)"
-                                                                       : TextFormat("The fuse box needs %d fuses  (you have %d)", obj.fusesTotal, obj.fuses);
-                else if (ExitNear(&map, player.pos))            prompt = ObjectiveDone(&obj, &map) ? TextFormat("E   %s", CHAPTERS[chapter].exitUse) : LockedText(&obj, true);
+                                                                       : (obj.got[COLLECT_FUSE] >= obj.total[COLLECT_FUSE]) ? "E   put in the fuses  (loud!)"
+                                                                       : TextFormat("The fuse box needs %d fuses  (you have %d)", obj.total[COLLECT_FUSE], obj.got[COLLECT_FUSE]);
+                else if (ExitNear(&map, player.pos))            prompt = ObjectiveDone(&obj, &map) ? TextFormat("E   %s", CHAPTERS[chapter].exitUse) : LockedText(&obj, &CHAPTERS[chapter], true);
                 else if (ItemNear(&map, player.pos) != ITEM_NONE) prompt = "Inventory full.  Use something first.";
                 else if (PlayerNearLocker(&player, &map, &lockerAt)) prompt = "E   hide in locker";
             }
@@ -584,6 +600,7 @@ int main(void)
                                     player.hidden ? (stalker.knowsHiding ? "HIDDEN (it saw you!)" : "HIDDEN (unseen)") : ""),
                          12, 106, 16, ORANGE);
                 if (player.usesBattery) DrawText(TextFormat("battery %.0f / %.0f", player.battery, BATTERY_MAX), 12, 128, 16, YELLOW);
+                if (cams.count > 0) DrawText(TextFormat("cameras %d   watched %.2f   alarm %.1f s", cams.count, CamsSeen(&cams), cams.alarm), 12, 150, 16, RED);
             }
 
             if (state == GS_READING) {

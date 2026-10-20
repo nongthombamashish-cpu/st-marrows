@@ -8,6 +8,7 @@
 #define MAX_W 128            // biggest map we support, in tiles
 #define MAX_H 128
 #define MAX_WAYPOINTS 9      // patrol points '1'..'9' in the map file
+#define MAX_CAMS 32          // security cameras ('>' 'v' '<' '^') in the map file
 
 typedef struct {
     char    tiles[MAX_H][MAX_W + 1];     // one text row per map row
@@ -19,6 +20,9 @@ typedef struct {
     int     waypointCount;               // highest waypoint number found
     bool    hasFuseBox;                  // the map has a 'G' (the exit needs power)
     bool    powered;                     // the fuse box has been filled: the elevator works
+    Vector2 camPos[MAX_CAMS];            // '>' 'v' '<' '^': where each ceiling camera hangs...
+    float   camFace[MAX_CAMS];           // ...and the way it looks (degrees: 0 = east, 90 = south, 180 = west, 270 = north)
+    int     camCount;
 } Map;
 
 bool LoadMap(Map *m, const char *path);

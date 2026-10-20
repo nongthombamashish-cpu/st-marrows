@@ -4,7 +4,7 @@
 
 #include "raylib.h"
 
-typedef enum { T_FLOOR1, T_FLOOR2, T_WALL, T_LOCKER, T_KEY, T_NOTE, T_EXIT, T_PLAYER, T_STALKER, T_BATTERY, T_FUSE, T_FUSEBOX, T_TABLE, T_BOTTLE, T_FILE, T_SHELF, T_COUNT } TileId;
+typedef enum { T_FLOOR1, T_FLOOR2, T_WALL, T_LOCKER, T_KEY, T_NOTE, T_EXIT, T_PLAYER, T_STALKER, T_BATTERY, T_FUSE, T_FUSEBOX, T_TABLE, T_BOTTLE, T_FILE, T_SHELF, T_CARD, T_COUNT } TileId;
 
 bool TilesLoad(void);      // reads assets/tiles/tiles.txt and the sheet it names (call again to reload)
 void TilesUnload(void);

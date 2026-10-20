@@ -1,12 +1,14 @@
 #include "map.h"
 #include "tiles.h"
 #include "inventory.h"
+#include "items.h"
 #include <math.h>
 #include <string.h>
 
 // Reads a text map. '#' wall, '.' floor, 'L' locker, 'P' player start,
 // 'S' stalker start, '1'..'9' stalker patrol points (visited in order),
-// 'K' key, 'F' fuse, 'G' fuse box, 'B' battery, 'T' table, 'H' shelf, 'R' patient file, 'o' bottle, 'n' note, 'X' locked exit door.
+// 'K' key, 'F' fuse, 'R' patient file, 'A' access card, 'G' fuse box, 'B' battery, 'o' bottle, 'T' table, 'H' shelf, 'n' note, 'X' locked exit door,
+// '>' 'v' '<' '^' ceiling cameras.
 // Lines starting with ';' are comments. Short rows are padded with walls.
 bool LoadMap(Map *m, const char *path)
 {
@@ -53,6 +55,13 @@ bool LoadMap(Map *m, const char *path)
                 int i = *t - '1';
                 m->waypoint[i] = centre;
                 if (i + 1 > m->waypointCount) m->waypointCount = i + 1;
+                *t = '.';
+            } else if (*t == '>' || *t == 'v' || *t == '<' || *t == '^') {
+                if (m->camCount < MAX_CAMS) {                        // a ceiling camera: it hangs over a floor tile
+                    m->camPos[m->camCount] = centre;
+                    m->camFace[m->camCount] = (*t == '>') ? 0.0f : (*t == 'v') ? 90.0f : (*t == '<') ? 180.0f : 270.0f;
+                    m->camCount++;
+                }
                 *t = '.';
             } else if (*t == 'G') {
                 m->hasFuseBox = true;                                // stays on the map as a solid box
@@ -165,30 +174,6 @@ void DrawMap(const Map *m, Camera2D cam, Vector2 eyes)
                         DrawRectangle(x * TILE + 2, y * TILE + 10, TILE - 4, 2, (Color){ 70, 48, 30, 255 });
                     }
                     break;
-                case 'R':                                            // patient file (only if you can see it)
-                    if (!HasLineOfSight(m, eyes, centre)) break;
-                    if (!TileDraw(T_FILE, px, py, false)) {
-                        DrawRectangle(x * TILE + 4, y * TILE + 3, 8, 10, (Color){ 226, 214, 170, 255 });
-                        DrawRectangleLines(x * TILE + 4, y * TILE + 3, 8, 10, (Color){ 120, 100, 60, 255 });
-                    }
-                    break;
-                case 'F':                                            // fuse (only if you can see it)
-                    if (!HasLineOfSight(m, eyes, centre)) break;
-                    if (!TileDraw(T_FUSE, px, py, false)) {
-                        DrawRectangle(x * TILE + 6, y * TILE + 3, 4, 10, (Color){ 214, 96, 74, 255 });
-                        DrawRectangle(x * TILE + 5, y * TILE + 3, 6, 2, (Color){ 180, 186, 196, 255 });
-                        DrawRectangle(x * TILE + 5, y * TILE + 11, 6, 2, (Color){ 180, 186, 196, 255 });
-                    }
-                    break;
-                case 'K':                                            // key (only if you can see it)
-                    if (!HasLineOfSight(m, eyes, centre)) break;
-                    if (!TileDraw(T_KEY, px, py, false)) {
-                        DrawCircle(x * TILE + 8, y * TILE + 5, 3, (Color){ 240, 200, 70, 255 });
-                        DrawRectangle(x * TILE + 7, y * TILE + 7, 2, 7, (Color){ 240, 200, 70, 255 });
-                        DrawRectangle(x * TILE + 9, y * TILE + 11, 3, 1, (Color){ 240, 200, 70, 255 });
-                        DrawRectangle(x * TILE + 9, y * TILE + 13, 2, 1, (Color){ 240, 200, 70, 255 });
-                    }
-                    break;
                 case 'n':                                            // note (only if you can see it)
                     if (!HasLineOfSight(m, eyes, centre)) break;
                     if (!TileDraw(T_NOTE, px, py, false)) {
@@ -200,7 +185,11 @@ void DrawMap(const Map *m, Camera2D cam, Vector2 eyes)
                     break;
                 default: {
                     ItemId item = ItemFromMapChar(m->tiles[y][x]);   // batteries, bottles ...: anything from the item table (inventory.c)
-                    if (item != ITEM_NONE && HasLineOfSight(m, eyes, centre)) ItemDraw(item, px, py);
+                    Collect col = CollectFromMapChar(m->tiles[y][x]);// keys, fuses, files, cards ...: from the collectibles table (items.c)
+                    if (item == ITEM_NONE && col == COLLECT_COUNT) break;
+                    if (!HasLineOfSight(m, eyes, centre)) break;     // only if you can see it
+                    if (item != ITEM_NONE) ItemDraw(item, px, py);
+                    else                   CollectDraw(col, px, py);
                     break;
                 }
             }

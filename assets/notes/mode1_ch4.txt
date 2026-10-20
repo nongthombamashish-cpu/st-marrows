@@ -1,0 +1,23 @@
+; St. Marrow's - Mode 1, Chapter 4 (Security Wing) notes.  PLACEHOLDER story text: rewrite freely.
+; Format: first line = title, the lines after it = the text. A line with only --- ends a note.
+; Notes are numbered by where their 'n' tile sits in the map: top to bottom, left to right.
+;   1 = the room in the north-east   2 = the server room   3 = the room north-west of the lobby (south side)   4 = the lobby (start)
+
+MONITOR 7: HANDWRITTEN LABEL
+Monitor 7 shows a room that is not on any floor plan.
+An office. A desk, a lamp, a chair turned to face the camera.
+Someone has written under the screen: M. A. - ROOF. Do not send anyone up.
+---
+ACCESS CARD LOG
+Three cards open the control room: Maintenance, Records, Night Shift.
+Maintenance is in the west cells. Records is in the server room. Night Shift is in the break room.
+All three were signed out to the same name on the same night.
+---
+SIGN-IN SHEET
+Last signature: M. A., 2:14 a.m.
+Nobody signed out. The cameras kept recording, and none of them recorded anyone leaving.
+---
+NIGHT GUARD: CAMERAS
+The cameras swing slowly, and they see in the dark. Count the swing and cross in the gap.
+If one catches you it rings, and something comes to look where you stood.
+A locker hides you from them. A bottle thrown at one ends the problem.

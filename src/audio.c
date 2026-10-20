@@ -187,6 +187,20 @@ Wave SynthThrow(void)                 // a quick whoosh
     return Finish(b, n, 0.5f);
 }
 
+Wave SynthAlarm(void)                 // a security alarm: two buzzing tones taking turns
+{
+    unsigned int n; float *b = Buf(1.2f, &n);
+    float phase = 0.0f;
+    for (unsigned int i = 0; i < n; i++) {
+        float t = (float)i / SR;
+        float f = (fmodf(t, 0.3f) < 0.15f) ? 880.0f : 660.0f;                         // swaps every 0.15 s
+        phase += 2.0f * PI * f / SR;
+        float env = fminf(1.0f, t * 40.0f) * fminf(1.0f, (1.2f - t) * 12.0f);          // quick fade in and out
+        b[i] = 0.45f * tanhf(2.5f * sinf(phase)) * env;                              // a hard, buzzy wave
+    }
+    return Finish(b, n, 0.8f);
+}
+
 Wave SynthAlert(void)                 // the stalker has seen you: a rising screech
 {
     unsigned int n; float *b = Buf(0.9f, &n);
@@ -300,7 +314,7 @@ static void PoolFree(Pool *p)
 static struct {
     bool ready, muted;
     float volume;                                   // 0..1, set from the menu
-    Pool step[3], stalkerStep, heartbeat, chime, paper, locker, lockedDoor, alert, sting, complete, glass, whoosh;
+    Pool step[3], stalkerStep, heartbeat, chime, paper, locker, lockedDoor, alert, sting, complete, glass, whoosh, alarm;
     AudioStream drone;
 } A;
 
@@ -334,6 +348,7 @@ bool AudioInit(void)
     PoolMake(&A.complete, SynthComplete());
     PoolMake(&A.glass, SynthGlass());
     PoolMake(&A.whoosh, SynthThrow());
+    PoolMake(&A.alarm, SynthAlarm());
 
     A.drone = LoadAudioStream(SR, 16, 1);
     SetAudioStreamCallback(A.drone, DroneCallback);
@@ -350,7 +365,7 @@ void AudioShutdown(void)
     for (int i = 0; i < 3; i++) PoolFree(&A.step[i]);
     PoolFree(&A.stalkerStep); PoolFree(&A.heartbeat); PoolFree(&A.chime); PoolFree(&A.paper);
     PoolFree(&A.locker); PoolFree(&A.lockedDoor); PoolFree(&A.alert); PoolFree(&A.sting); PoolFree(&A.complete);
-    PoolFree(&A.glass); PoolFree(&A.whoosh);
+    PoolFree(&A.glass); PoolFree(&A.whoosh); PoolFree(&A.alarm);
     CloseAudioDevice();
     A.ready = false;
 }
@@ -381,6 +396,8 @@ void AudioBattery(void)    { if (A.ready) PoolPlay(&A.chime, 0.7f, 0.0f, 0.62f);
 void AudioFlashlightDead(void) { if (A.ready) PoolPlay(&A.lockedDoor, 0.55f, 0.0f, 1.7f); } // the "no" rattle, higher
 void AudioPowerOn(void)    { if (A.ready) PoolPlay(&A.complete, 0.9f, 0.0f, 0.55f); }       // the chapter arpeggio, deep
 void AudioThrow(void)      { if (A.ready) PoolPlay(&A.whoosh, 0.5f, 0.0f, 0.95f + 0.1f * (float)GetRandomValue(0, 10) / 10.0f); }
+void AudioAlarm(void)      { if (A.ready) PoolPlay(&A.alarm, 0.75f, 0.0f, 1.0f); }                          // a camera saw you
+void AudioCameraBreak(void){ if (A.ready) PoolPlay(&A.lockedDoor, 0.8f, 0.0f, 0.6f); }                       // a camera smashed: the metal rattle, low
 void AudioBottle(void)     { if (A.ready) PoolPlay(&A.glass, 0.22f, 0.0f, 1.7f); }                           // the shatter, tiny and high: a clink
 void AudioGlass(float volume, float pan) { if (A.ready) PoolPlay(&A.glass, volume, pan, 0.94f + 0.12f * (float)GetRandomValue(0, 10) / 10.0f); }
 
