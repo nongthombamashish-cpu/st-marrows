@@ -9,10 +9,21 @@ void PlayerInit(Player *p, Vector2 start)
     p->flashlight = true;
     p->battery = BATTERY_MAX;
     p->usesBattery = false;
+    InvInit(&p->inv);
     p->moving = false;
     p->running = false;
     p->hidden = false;
     p->exitPos = start;
+}
+
+bool PlayerLoadBattery(Player *p, int slot)
+{
+    if (!p->usesBattery || slot < 0 || slot >= INV_SLOTS || p->inv.slot[slot].id != ITEM_BATTERY) return false;
+    if (p->battery >= BATTERY_MAX - 0.5f) return false;                        // already full: do not waste it
+    InvRemove(&p->inv, slot);
+    p->battery += BATTERY_CHARGE;
+    if (p->battery > BATTERY_MAX) p->battery = BATTERY_MAX;
+    return true;
 }
 
 void PlayerUpdate(Player *p, const Map *m, float dt)
@@ -37,7 +48,8 @@ void PlayerUpdate(Player *p, const Map *m, float dt)
 
     if (IsKeyPressed(KEY_F)) {
         if (p->flashlight) p->flashlight = false;
-        else if (!p->usesBattery || p->battery > 0.0f) p->flashlight = true;     // a dead flashlight stays off
+        else if (!p->usesBattery || p->battery > 0.0f) p->flashlight = true;
+        else if (PlayerLoadBattery(p, InvFind(&p->inv, ITEM_BATTERY))) p->flashlight = true;   // dead: F loads a spare battery if you carry one
     }
     if (p->usesBattery && p->flashlight) {                                         // the light costs charge
         p->battery -= BATTERY_DRAIN * dt;

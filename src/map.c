@@ -1,11 +1,12 @@
 #include "map.h"
 #include "tiles.h"
+#include "inventory.h"
 #include <math.h>
 #include <string.h>
 
 // Reads a text map. '#' wall, '.' floor, 'L' locker, 'P' player start,
 // 'S' stalker start, '1'..'9' stalker patrol points (visited in order),
-// 'K' key, 'F' fuse, 'G' fuse box, 'B' battery, 'T' table, 'n' note, 'X' locked exit door.
+// 'K' key, 'F' fuse, 'G' fuse box, 'B' battery, 'T' table, 'H' shelf, 'R' patient file, 'o' bottle, 'n' note, 'X' locked exit door.
 // Lines starting with ';' are comments. Short rows are padded with walls.
 bool LoadMap(Map *m, const char *path)
 {
@@ -65,7 +66,7 @@ bool IsSolid(const Map *m, int tx, int ty)
 {
     if (tx < 0 || ty < 0 || tx >= m->w || ty >= m->h) return true;      // outside = wall
     char t = m->tiles[ty][tx];
-    return t == '#' || t == 'L' || t == 'X' || t == 'G' || t == 'T';    // walls, lockers, exit, fuse box, tables
+    return t == '#' || t == 'L' || t == 'X' || t == 'G' || t == 'T' || t == 'H';    // walls, lockers, exit, fuse box, tables, shelves
 }
 
 bool IsSolidAt(const Map *m, Vector2 p)
@@ -157,19 +158,26 @@ void DrawMap(const Map *m, Camera2D cam, Vector2 eyes)
                         DrawRectangleLines(x * TILE + 1, y * TILE + 3, TILE - 2, TILE - 6, (Color){ 110, 120, 134, 255 });
                     }
                     break;
+                case 'H':                                            // archive shelf (blocks movement and light)
+                    if (!TileDraw(T_SHELF, px, py, false)) {
+                        DrawRectangle(x * TILE + 1, y * TILE + 1, TILE - 2, TILE - 2, (Color){ 120, 86, 56, 255 });
+                        DrawRectangle(x * TILE + 2, y * TILE + 4, TILE - 4, 2, (Color){ 70, 48, 30, 255 });
+                        DrawRectangle(x * TILE + 2, y * TILE + 10, TILE - 4, 2, (Color){ 70, 48, 30, 255 });
+                    }
+                    break;
+                case 'R':                                            // patient file (only if you can see it)
+                    if (!HasLineOfSight(m, eyes, centre)) break;
+                    if (!TileDraw(T_FILE, px, py, false)) {
+                        DrawRectangle(x * TILE + 4, y * TILE + 3, 8, 10, (Color){ 226, 214, 170, 255 });
+                        DrawRectangleLines(x * TILE + 4, y * TILE + 3, 8, 10, (Color){ 120, 100, 60, 255 });
+                    }
+                    break;
                 case 'F':                                            // fuse (only if you can see it)
                     if (!HasLineOfSight(m, eyes, centre)) break;
                     if (!TileDraw(T_FUSE, px, py, false)) {
                         DrawRectangle(x * TILE + 6, y * TILE + 3, 4, 10, (Color){ 214, 96, 74, 255 });
                         DrawRectangle(x * TILE + 5, y * TILE + 3, 6, 2, (Color){ 180, 186, 196, 255 });
                         DrawRectangle(x * TILE + 5, y * TILE + 11, 6, 2, (Color){ 180, 186, 196, 255 });
-                    }
-                    break;
-                case 'B':                                            // battery (only if you can see it)
-                    if (!HasLineOfSight(m, eyes, centre)) break;
-                    if (!TileDraw(T_BATTERY, px, py, false)) {
-                        DrawRectangle(x * TILE + 5, y * TILE + 4, 6, 9, (Color){ 90, 200, 255, 255 });
-                        DrawRectangle(x * TILE + 7, y * TILE + 2, 2, 2, (Color){ 200, 210, 220, 255 });
                     }
                     break;
                 case 'K':                                            // key (only if you can see it)
@@ -190,8 +198,11 @@ void DrawMap(const Map *m, Camera2D cam, Vector2 eyes)
                         DrawRectangle(x * TILE + 5, y * TILE + 9, 4, 1, (Color){ 120, 112, 96, 255 });
                     }
                     break;
-                default:
+                default: {
+                    ItemId item = ItemFromMapChar(m->tiles[y][x]);   // batteries, bottles ...: anything from the item table (inventory.c)
+                    if (item != ITEM_NONE && HasLineOfSight(m, eyes, centre)) ItemDraw(item, px, py);
                     break;
+                }
             }
         }
     }

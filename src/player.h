@@ -3,6 +3,7 @@
 #define PLAYER_H
 
 #include "map.h"
+#include "inventory.h"
 
 typedef struct {
     Vector2 pos;          // centre of the player, in world pixels (the locker's centre while hiding)
@@ -10,12 +11,15 @@ typedef struct {
     bool    flashlight;
     float   battery;      // flashlight charge, 0..BATTERY_MAX
     bool    usesBattery;  // false = the flashlight never runs out (chapter 1)
+    Inventory inv;        // what you carry (batteries, bottles ...)
     bool    moving, running;
     bool    hidden;       // inside a locker
     Vector2 exitPos;      // where you stand again when you climb out
 } Player;
 
 void  PlayerInit(Player *p, Vector2 start);
+// Loads the spare battery in an inventory slot into the flashlight. False if that slot holds no battery, or the flashlight is already full.
+bool  PlayerLoadBattery(Player *p, int slot);
 void  PlayerUpdate(Player *p, const Map *m, float dt);   // reads the keyboard
 float PlayerNoise(const Player *p);                      // how far away the player can be heard right now
 

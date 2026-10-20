@@ -23,6 +23,8 @@
 #include "audio.h"
 #include "tiles.h"
 #include "chapters.h"
+#include "throw.h"
+#include "inventory.h"
 
 #define SETTINGS_FILE "settings.txt"                // saved next to the game: the volume (0-10) and how many chapters are unlocked
 #define TITLE_CREDIT  "Made by Mr. A   |   Art: Kenney (CC0)"
@@ -107,13 +109,51 @@ static void SaveSettings(int volume, int unlocked)
 }
 
 // The yellow line at the top: what to do next.
-static const char *GoalText(const Objective *o, const Map *m)
+static const char *GoalText(const Objective *o, const Map *m, const Chapter *ch)
 {
     if (o->keys < o->keysTotal)       return TextFormat("Find the keys: %d/%d", o->keys, o->keysTotal);
     if (o->fuses < o->fusesTotal)     return TextFormat("Find the fuses: %d/%d", o->fuses, o->fusesTotal);
+    if (o->files < o->filesTotal)     return TextFormat("Find the patient files: %d/%d", o->files, o->filesTotal);
     if (m->hasFuseBox && !m->powered) return "Put the fuses in the fuse box to restore the power.";
     if (m->hasFuseBox)                return "The power is on. Get to the elevator before it finds you.";
-    return "All keys found. Reach the exit at the east end of the corridor.";
+    return ch->allDone;
+}
+
+// Why the exit will not open yet: the long version (a message) and the short one (the prompt near the door).
+static const char *LockedText(const Objective *o, bool shortForm)
+{
+    if (o->keys < o->keysTotal)   return shortForm ? "The exit is locked"  : TextFormat("The exit is locked.  Keys: %d/%d", o->keys, o->keysTotal);
+    if (o->files < o->filesTotal) return shortForm ? "The vault is sealed" : TextFormat("The vault is sealed.  Patient files: %d/%d", o->files, o->filesTotal);
+    return shortForm ? "The elevator has no power" : "The elevator is dead.  Restore the power first.";
+}
+
+// Left click: use whatever is in the selected slot. A new item = a new 'case' here (see inventory.h).
+static void UseSelected(Player *player, Throw *thrown, const Map *map, Vector2 aim, char *toast, float *toastTime)
+{
+    int s = player->inv.selected;
+    switch (player->inv.slot[s].id) {
+        case ITEM_BATTERY:
+            if (PlayerLoadBattery(player, s)) {
+                TextCopy(toast, TextFormat("Battery loaded  (+%d%%)", (int)BATTERY_CHARGE));
+                *toastTime = 2.0f;
+                AudioBattery();
+            } else {
+                TextCopy(toast, "The flashlight battery is still full.");
+                *toastTime = 1.8f;
+            }
+            break;
+        case ITEM_BOTTLE:
+            if (ThrowStart(thrown, map, player->pos, Vector2Add(player->pos, aim))) {
+                InvRemove(&player->inv, s);
+                AudioThrow();
+            } else if (!thrown->flying) {
+                TextCopy(toast, "No room to throw.");
+                *toastTime = 1.5f;
+            }
+            break;
+        default:
+            break;                                           // an empty slot: nothing happens
+    }
 }
 
 // Loads a chapter's map and notes, and puts the player and the stalker at the start. False if the map file is missing.
@@ -209,6 +249,7 @@ int main(void)
     Player player;
     Stalker stalker;
     Objective obj;
+    Throw thrown;                      // the bottle in the air (Chapter 3)
     int chapter = 0;                   // the chapter selected on the title screen / being played (0 = chapter 1)
     if (!LoadChapter(chapter, &map, notes, &noteCount, &obj, &player, &stalker)) {
         while (!WindowShouldClose() && !IsKeyPressed(KEY_ESCAPE)) {
@@ -222,6 +263,7 @@ int main(void)
         CloseWindow();
         return 1;
     }
+    ThrowInit(&thrown);
 
     RenderTexture2D scene = LoadRenderTexture(VIRT_W, VIRT_H);   // the game picture
     RenderTexture2D mask  = LoadRenderTexture(VIRT_W, VIRT_H);   // the darkness, multiplied over the picture
@@ -274,13 +316,25 @@ int main(void)
             runTime += dt;
             if (state == GS_PLAYING) {
                 bool lightWasOn = player.flashlight;
+                float chargeBefore = player.battery;
+                for (int i = 0; i < INV_SLOTS; i++)                      // keys 1-6 pick a slot, and so does the mouse wheel
+                    if (IsKeyPressed(KEY_ONE + i)) InvSelect(&player.inv, i);
+                float wheel = GetMouseWheelMove();
+                if (wheel > 0.0f) InvScroll(&player.inv, -1);
+                if (wheel < 0.0f) InvScroll(&player.inv, 1);
                 PlayerUpdate(&player, &map, dt);
+                if (player.battery > chargeBefore + 1.0f) {              // F on a dead flashlight loaded a spare battery
+                    TextCopy(toast, "Spare battery loaded.");
+                    toastTime = 2.0f;
+                    AudioBattery();
+                }
                 if (player.usesBattery && !player.hidden && player.battery <= 0.0f) {
                     if (lightWasOn && !player.flashlight) {              // it just ran out
-                        TextCopy(toast, "The flashlight died.");
+                        TextCopy(toast, InvFind(&player.inv, ITEM_BATTERY) >= 0 ? "The flashlight died.  Press F to load a spare battery."
+                                                                                : "The flashlight died.");
                         toastTime = 3.0f;
                         AudioFlashlightDead();
-                    } else if (!lightWasOn && IsKeyPressed(KEY_F)) {     // pressing F on a dead flashlight
+                    } else if (!lightWasOn && IsKeyPressed(KEY_F)) {     // pressing F on a dead flashlight with no spare
                         TextCopy(toast, "No battery left.");
                         toastTime = 2.0f;
                         AudioFlashlightDead();
@@ -296,10 +350,20 @@ int main(void)
                     toastTime = 2.5f;
                     AudioChime();
                 }
-                if (!player.hidden && player.usesBattery && PickUpBattery(&player.battery, &map, player.pos)) {
-                    TextCopy(toast, TextFormat("Battery  +%d%%", (int)BATTERY_PICKUP));
-                    toastTime = 2.0f;
-                    AudioBattery();
+                if (!player.hidden && PickUpFile(&obj, &map, player.pos)) {
+                    TextCopy(toast, TextFormat("Patient file found  (%d/%d)", obj.files, obj.filesTotal));
+                    toastTime = 2.5f;
+                    AudioChime();
+                }
+                if (!player.hidden) {                                    // batteries, bottles ...: walk over an item to pick it up
+                    ItemId got = PickUpItem(&player.inv, &map, player.pos);
+                    if (got != ITEM_NONE) {
+                        TextCopy(toast, TextFormat("%s  (you have %d)", ItemGet(got)->name, InvCount(&player.inv, got)));
+                        toastTime = 2.0f;
+                        if (got == ITEM_BOTTLE) AudioBottle();
+                        else if (got == ITEM_BATTERY) AudioBattery();
+                        else AudioChime();
+                    }
                 }
                 if (IsKeyPressed(KEY_E)) {                   // E does the most useful thing nearby
                     int note;
@@ -334,8 +398,7 @@ int main(void)
                                 SaveSettings(volume, unlocked);
                             }
                         } else {
-                            if (obj.keys < obj.keysTotal) TextCopy(toast, TextFormat("The exit is locked.  Keys: %d/%d", obj.keys, obj.keysTotal));
-                            else                          TextCopy(toast, "The elevator is dead.  Restore the power first.");
+                            TextCopy(toast, LockedText(&obj, false));
                             toastTime = 2.5f;
                             AudioLockedDoor();
                         }
@@ -346,6 +409,12 @@ int main(void)
             } else {                                         // reading: you stand still, the stalker does not
                 player.moving = player.running = false;
                 if (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_ENTER)) { state = GS_PLAYING; AudioPaper(); }
+            }
+            Vector2 landed;                                          // a bottle in the air: when it shatters, the stalker may hear it
+            if (ThrowUpdate(&thrown, dt, &landed)) {
+                float dist = Vector2Distance(landed, player.pos);
+                AudioGlass(Clamp(1.0f - dist / 700.0f, 0.25f, 1.0f), Clamp((landed.x - player.pos.x) / 160.0f, -1.0f, 1.0f));
+                if (Vector2Distance(stalker.pos, landed) < THROW_NOISE_RADIUS) StalkerAlert(&stalker, &map, landed);
             }
             if (state != GS_COMPLETE && StalkerUpdate(&stalker, &map, &player, dt)) { state = GS_CAUGHT; AudioSting(); }
         } else if (state == GS_MENU || state == GS_PAUSED) {
@@ -385,6 +454,7 @@ int main(void)
             if (LoadChapter(chapter, &map, notes, &noteCount, &obj, &player, &stalker)) {   // reloads the map, so keys, fuses and batteries are back
                 runTime = 0;
                 openNote = -1;
+                ThrowInit(&thrown);
                 menuMsg[0] = '\0';
                 TextCopy(toast, TextFormat("Chapter %d: %s", chapter + 1, CHAPTERS[chapter].name));
                 toastTime = 3.5f;
@@ -409,6 +479,9 @@ int main(void)
         Vector2 me = GetWorldToScreen2D(player.pos, cam);          // player position on the 640x360 picture
         Vector2 aim = Vector2Subtract(mouse, me);
         float aimDeg = (aim.x == 0 && aim.y == 0) ? 0 : atan2f(aim.y, aim.x) * RAD2DEG;
+
+        if (state == GS_PLAYING && !player.hidden && IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+            UseSelected(&player, &thrown, &map, aim, toast, &toastTime);       // click = use the item in the selected slot
 
         // ---- Draw 1: the darkness mask (dark everywhere, light added where the lights are) ----
         float now = (float)GetTime();
@@ -453,6 +526,7 @@ int main(void)
                     DrawLineEx(player.pos, Vector2Add(player.pos, Vector2Scale(Vector2Normalize(aim), 7)),
                                2, (Color){ 255, 240, 200, 255 });
                 }
+                ThrowDraw(&thrown);
             EndMode2D();
             BeginBlendMode(BLEND_MULTIPLIED);
                 DrawTextureRec(mask.texture, (Rectangle){ 0, 0, VIRT_W, -VIRT_H }, (Vector2){ 0, 0 }, WHITE);
@@ -469,7 +543,7 @@ int main(void)
 
             DrawText("WASD move  |  Shift run (loud)  |  Mouse aim  |  F flashlight  |  E use / hide  |  M mute  |  R restart  |  F3 debug  |  Esc pause",
                      12, 10, 16, (Color){ 200, 200, 200, 170 });
-            DrawText(GoalText(&obj, &map), 12, 34, 20, (Color){ 235, 205, 110, 235 });
+            DrawText(GoalText(&obj, &map, &CHAPTERS[chapter]), 12, 34, 20, (Color){ 235, 205, 110, 235 });
 
             if (player.usesBattery) {                       // flashlight battery: a bar that turns yellow, then red and blinking
                 float charge = player.battery / BATTERY_MAX;
@@ -481,6 +555,8 @@ int main(void)
                 DrawRectangle(90, sh - 31, (int)(120.0f * charge), 10, bc);
                 if (player.battery <= 0.0f) DrawText("DEAD", 222, sh - 34, 16, (Color){ 235, 70, 60, 235 });
             }
+            if (CHAPTERS[chapter].inventory) InvDraw(&player.inv, sw, sh);    // the hotbar
+            int lift = CHAPTERS[chapter].inventory ? 56 : 0;                  // the hotbar takes the bottom of the screen: messages move up
 
             // What E would do right now.
             const char *prompt = NULL;
@@ -491,15 +567,14 @@ int main(void)
                 else if (FuseBoxNear(&map, player.pos))         prompt = map.powered ? "The power is on"
                                                                        : (obj.fuses >= obj.fusesTotal) ? "E   put in the fuses  (loud!)"
                                                                        : TextFormat("The fuse box needs %d fuses  (you have %d)", obj.fusesTotal, obj.fuses);
-                else if (ExitNear(&map, player.pos))            prompt = ObjectiveDone(&obj, &map) ? TextFormat("E   %s", CHAPTERS[chapter].exitUse)
-                                                                       : (obj.keys < obj.keysTotal) ? "The exit is locked" : "The elevator has no power";
-                else if (player.usesBattery && BatteryNear(&map, player.pos)) prompt = "A spare battery.  Yours is still good: come back for it.";
+                else if (ExitNear(&map, player.pos))            prompt = ObjectiveDone(&obj, &map) ? TextFormat("E   %s", CHAPTERS[chapter].exitUse) : LockedText(&obj, true);
+                else if (ItemNear(&map, player.pos) != ITEM_NONE) prompt = "Inventory full.  Use something first.";
                 else if (PlayerNearLocker(&player, &map, &lockerAt)) prompt = "E   hide in locker";
             }
             if (prompt)
-                DrawText(prompt, (sw - MeasureText(prompt, 22)) / 2, sh - 56, 22, (Color){ 230, 230, 230, 220 });
+                DrawText(prompt, (sw - MeasureText(prompt, 22)) / 2, sh - 56 - lift, 22, (Color){ 230, 230, 230, 220 });
             if (toastTime > 0)
-                DrawText(toast, (sw - MeasureText(toast, 24)) / 2, sh - 100, 24, Fade(WHITE, fminf(1.0f, toastTime)));
+                DrawText(toast, (sw - MeasureText(toast, 24)) / 2, sh - 100 - lift, 24, Fade(WHITE, fminf(1.0f, toastTime)));
 
             if (debug) {
                 DrawFPS(12, 62);

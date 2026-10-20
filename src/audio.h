@@ -26,6 +26,9 @@ void AudioComplete(void);             // chapter complete
 void AudioBattery(void);              // battery picked up
 void AudioFlashlightDead(void);       // the flashlight has no battery left
 void AudioPowerOn(void);              // the fuse box catches: power restored
+void AudioThrow(void);                // a bottle leaves your hand
+void AudioBottle(void);               // a bottle picked up (a little clink)
+void AudioGlass(float volume, float pan);   // a bottle shatters somewhere (volume 0..1, pan -1 left .. +1 right)
 
 // The sounds themselves (also used by the tests). The caller frees a Wave with UnloadWave.
 Wave SynthStep(float freq);

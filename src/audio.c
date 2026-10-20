@@ -156,6 +156,37 @@ Wave SynthLockedDoor(void)            // a dull rattle: "no"
     return Finish(b, n, 0.8f);
 }
 
+Wave SynthGlass(void)                 // a bottle shatters: a sharp crack, then bright tinkling pieces
+{
+    unsigned int n; float *b = Buf(0.9f, &n);
+    Seed(77u);
+    float lp = 0;
+    for (unsigned int i = 0; i < n; i++) {
+        float t = (float)i / SR;
+        float noise = Rand();
+        lp += 0.35f * (noise - lp);
+        float crack = (noise - lp) * expf(-t * 38.0f);                              // a bright burst of noise
+        float tinkle = Bell(t, 0.02f, 2900.0f, 0.18f, 14.0f) + Bell(t, 0.07f, 3700.0f, 0.14f, 16.0f)
+                     + Bell(t, 0.13f, 2300.0f, 0.12f, 18.0f) + Bell(t, 0.21f, 4100.0f, 0.09f, 20.0f)
+                     + Bell(t, 0.33f, 3300.0f, 0.07f, 22.0f);                         // pieces landing
+        b[i] = 1.3f * crack + tinkle;
+    }
+    return Finish(b, n, 0.85f);
+}
+
+Wave SynthThrow(void)                 // a quick whoosh
+{
+    unsigned int n; float *b = Buf(0.22f, &n);
+    Seed(19u);
+    float lp = 0;
+    for (unsigned int i = 0; i < n; i++) {
+        float t = (float)i / SR;
+        lp += (0.05f + 0.3f * (t / 0.22f)) * (Rand() - lp);                         // the noise brightens as it flies
+        b[i] = lp * sinf(PI * t / 0.22f);
+    }
+    return Finish(b, n, 0.5f);
+}
+
 Wave SynthAlert(void)                 // the stalker has seen you: a rising screech
 {
     unsigned int n; float *b = Buf(0.9f, &n);
@@ -269,7 +300,7 @@ static void PoolFree(Pool *p)
 static struct {
     bool ready, muted;
     float volume;                                   // 0..1, set from the menu
-    Pool step[3], stalkerStep, heartbeat, chime, paper, locker, lockedDoor, alert, sting, complete;
+    Pool step[3], stalkerStep, heartbeat, chime, paper, locker, lockedDoor, alert, sting, complete, glass, whoosh;
     AudioStream drone;
 } A;
 
@@ -301,6 +332,8 @@ bool AudioInit(void)
     PoolMake(&A.alert, SynthAlert());
     PoolMake(&A.sting, SynthSting());
     PoolMake(&A.complete, SynthComplete());
+    PoolMake(&A.glass, SynthGlass());
+    PoolMake(&A.whoosh, SynthThrow());
 
     A.drone = LoadAudioStream(SR, 16, 1);
     SetAudioStreamCallback(A.drone, DroneCallback);
@@ -317,6 +350,7 @@ void AudioShutdown(void)
     for (int i = 0; i < 3; i++) PoolFree(&A.step[i]);
     PoolFree(&A.stalkerStep); PoolFree(&A.heartbeat); PoolFree(&A.chime); PoolFree(&A.paper);
     PoolFree(&A.locker); PoolFree(&A.lockedDoor); PoolFree(&A.alert); PoolFree(&A.sting); PoolFree(&A.complete);
+    PoolFree(&A.glass); PoolFree(&A.whoosh);
     CloseAudioDevice();
     A.ready = false;
 }
@@ -346,6 +380,9 @@ void AudioComplete(void)   { if (A.ready) PoolPlay(&A.complete, 0.9f, 0.0f, 1.0f
 void AudioBattery(void)    { if (A.ready) PoolPlay(&A.chime, 0.7f, 0.0f, 0.62f); }          // the key chime, lower
 void AudioFlashlightDead(void) { if (A.ready) PoolPlay(&A.lockedDoor, 0.55f, 0.0f, 1.7f); } // the "no" rattle, higher
 void AudioPowerOn(void)    { if (A.ready) PoolPlay(&A.complete, 0.9f, 0.0f, 0.55f); }       // the chapter arpeggio, deep
+void AudioThrow(void)      { if (A.ready) PoolPlay(&A.whoosh, 0.5f, 0.0f, 0.95f + 0.1f * (float)GetRandomValue(0, 10) / 10.0f); }
+void AudioBottle(void)     { if (A.ready) PoolPlay(&A.glass, 0.22f, 0.0f, 1.7f); }                           // the shatter, tiny and high: a clink
+void AudioGlass(float volume, float pan) { if (A.ready) PoolPlay(&A.glass, volume, pan, 0.94f + 0.12f * (float)GetRandomValue(0, 10) / 10.0f); }
 
 // Footsteps, heartbeat, drone and the chase alert, driven by what the stalker is doing.
 void AudioUpdate(const Player *p, const Stalker *s, bool playing, float dt)

@@ -21,12 +21,22 @@
 #define ITEM_REACH         22.0f    // how close you must be to read a note or use the exit
 #define KEY_PICKUP_DIST    12.0f    // walk this close to a key, fuse or battery to pick it up
 
+// Inventory: a row of slots at the bottom of the screen. Items of one kind stack in a slot.
+#define INV_SLOTS              6     // number of slots (selected with the keys 1-6 or the mouse wheel; at most 9)
+#define BATTERY_STACK          3     // spare batteries in one slot
+#define BOTTLE_STACK           5     // bottles in one slot
+
 // Flashlight battery (only in chapters that use it: see chapters.h)
 #define BATTERY_MAX        100.0f
 #define BATTERY_DRAIN        1.2f    // lost per second while the flashlight is on
-#define BATTERY_PICKUP      40.0f    // what one battery gives back
+#define BATTERY_CHARGE      40.0f    // what one spare battery gives back when you load it
 #define BATTERY_DIM_AT       0.25f   // below this fraction of a full battery the beam gets shorter...
 #define BATTERY_FLICKER_AT   0.12f   // ...and below this one it flickers
+
+// Throwing bottles (Chapter 3)
+#define THROW_RANGE          210.0f  // how far you can throw (pixels)
+#define THROW_SPEED          300.0f  // how fast a bottle flies (pixels per second)
+#define THROW_NOISE_RADIUS   420.0f  // the stalker hears a shattering bottle this close
 
 // Stalker (pixels per second / pixels)
 #define STALKER_PATROL_SPEED       30.0f

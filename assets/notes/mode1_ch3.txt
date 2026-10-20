@@ -1,0 +1,22 @@
+; St. Marrow's - Mode 1, Chapter 3 (Records Basement) notes.  PLACEHOLDER story text: rewrite freely.
+; Format: first line = title, the lines after it = the text. A line with only --- ends a note.
+; Notes are numbered by where their 'n' tile sits in the map: top to bottom, left to right.
+;   1 = elevator lobby (start)   2 = vault antechamber (east)   3 = reading area in the middle of the stacks   4 = clerks' office (west)
+
+ELEVATOR B: ARRIVAL NOTICE
+Basement. Records. Staff only.
+The car will not take you back up. Mr. A had the up button removed years ago.
+The archive is to the east. The vault is on the far side of the stacks.
+---
+VAULT DOOR NOTICE
+The vault opens when all three files are in the tray: Patient 9, Patient 12, Patient 17.
+Mr. A's name is not in the register. His handwriting is on every page.
+---
+SHELF CARD: BOTTLES
+Empty bottles from the pharmacy were left all over the archive. Nobody remembers why.
+It follows sound. A bottle thrown down an aisle will pull it away from you. Two, if you need the time.
+Do not throw one near yourself.
+---
+CLERK'S MEMO: MISSING FILES
+Three files are missing from the index: Patient 9, Patient 12, Patient 17. Mr. A took them himself.
+They were never returned. They are filed under the wrong letters on purpose: one in the office, one in the stacks, one by the incinerator.

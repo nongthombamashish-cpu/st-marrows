@@ -2,7 +2,7 @@
 ; Legend:  # wall   . floor   L locker   P player start   S stalker start
 ;          1-9 stalker patrol points, visited in order (1, 2, 3 ... then back to 1)
 ;          F fuse (collect all)   G fuse box (E with all fuses = power on, and the stalker hears it)
-;          B battery (recharges the flashlight)   n note (read with E)   T table / bed / shelf (blocks movement and light)
+;          B battery (goes in your inventory: select it and click to load it)   n note (read with E)   T table / bed / shelf (blocks movement and light)
 ;          X elevator doors (work once the power is on)
 ; Every row must be the same width. Lines that start with ';' are ignored.
 ################################################################################
