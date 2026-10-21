@@ -12,7 +12,7 @@ static int tileSize = 16, spacing = 0, margin = 0;      // how the picture is la
 static int cols = 0, rows = 0;                          // how many tiles it holds
 static int slot[T_COUNT];                               // which sheet tile draws each thing (-1 = not set)
 static int page = 0;                                    // current page of the browser
-static const char *names[T_COUNT] = { "floor1", "floor2", "wall", "locker", "key", "note", "exit", "player", "stalker", "battery", "fuse", "fusebox", "table", "bottle", "file", "shelf", "card" };
+static const char *names[T_COUNT] = { "floor1", "floor2", "wall", "locker", "key", "note", "exit", "player", "stalker", "battery", "fuse", "fusebox", "table", "bottle", "file", "shelf", "card", "ledger" };
 
 // Removes spaces at both ends of a string, in place.
 static void Trim(char *s)
@@ -35,7 +35,7 @@ bool TilesLoad(void)
 {
     TilesUnload();
     for (int i = 0; i < T_COUNT; i++) slot[i] = -1;
-    slot[T_BOTTLE] = 113; slot[T_FILE] = 66; slot[T_SHELF] = 63; slot[T_CARD] = 101;      // Chapter 3 art by default, so an older tiles.txt still works (set -1 there for plain shapes)
+    slot[T_BOTTLE] = 113; slot[T_FILE] = 66; slot[T_SHELF] = 63; slot[T_CARD] = 101; slot[T_LEDGER] = 66;      // Chapter 3 art by default, so an older tiles.txt still works (set -1 there for plain shapes)
     tileSize = 16; spacing = 0; margin = 0;
     char path[256] = "assets/tiles/tileset.png";
 

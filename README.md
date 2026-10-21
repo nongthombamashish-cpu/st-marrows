@@ -4,7 +4,7 @@
 
 ![Preview](docs/preview.png)
 
-- **Mode 1** (in progress): 5 chapters, one hospital wing each (Chapters 1-4 playable). More modes later.
+- **Mode 1** (in progress): 5 chapters, one hospital wing each (all 5 chapters playable). More modes later.
 - **Lore:** the hospital was made by Mr. A.
 - **Platform:** Windows 64-bit.
 
@@ -40,6 +40,14 @@ Find the 3 access cards (the west cells, the server room, the break room), then 
 - **Ways past them:** wait for the beam to swing away and cross in the gap, hide in a locker (they cannot see in), or **break a camera**: select a bottle and throw it so it shatters right next to the camera.
 - **A faster stalker** (22% faster than Chapter 1). Battery and inventory carry over.
 - Tune the cameras in `src/config.h` (`CAM_*`) and the stalker's speed in `src/chapters.h`.
+
+## Chapter 5 goal (The Roof, the finale)
+
+Cross the executive floor to Mr. A's office at the west end and take his **ledger** from the desk. Then **run** the whole length of the floor to the roof door at the east end and press E. The way there is a long gallery with columns for cover, rooms on both sides (the rooms are linked, so you can go round the gallery), cameras, lockers, bottles and batteries. New in this chapter:
+
+- **The hunt.** The moment you take the ledger the building turns on you: alarm and a red pulse, a **90 second countdown** at the top of the screen, a stalker that is 14% faster, and every 6 seconds it is told where you are, so it keeps coming. The cameras stop watching you (the alarm is already ringing). If the clock runs out the doors seal and you are caught. You can still outrun the stalker, and bottles and lockers still work.
+- **The ending.** Reaching the roof door shows THE END with your time.
+- Tune it in `src/config.h` (`HUNT_SPEED`, `HUNT_PING`) and `src/chapters.h` (`hunt` = seconds on the clock, `stalkerSpeed`).
 
 ## Inventory
 
@@ -102,6 +110,7 @@ src/stalker.c/.h  the stalker's state machine
 src/items.c/.h    keys, fuses, files, picking up items, notes, the fuse box, the exit door
 src/inventory.c/.h  the inventory (hotbar) and the item table
 src/cameras.c/.h    security cameras: sweeping, seeing you, the alarm, breaking
+src/hunt.c/.h       the final hunt: the countdown and the pings
 src/throw.c/.h    throwing bottles: flight, where it lands, the shatter effect
 src/chapters.h    the list of chapters: map, notes, stalker speed, battery on/off
 src/light.c/.h    lights and shadows (walls block light)
@@ -113,7 +122,7 @@ tools/package.ps1 builds the release zip
 VERSION           version used in the zip name
 ```
 
-Map legend: `#` wall · `.` floor · `L` locker · `P` player start · `S` stalker start · `1`-`9` stalker patrol points (visited in order) · `K` key · `A` access card · `>` `v` `<` `^` ceiling camera (the way it looks) · `R` patient file · `o` bottle · `H` archive shelf · `F` fuse · `G` fuse box · `T` table, bed or shelf (blocks movement and light) · `n` note (numbered top to bottom, left to right, matching the notes file) · `X` locked exit door. Lines starting with `;` are comments.
+Map legend: `#` wall · `.` floor · `L` locker · `P` player start · `S` stalker start · `1`-`9` stalker patrol points (visited in order) · `K` key · `A` access card · `M` Mr. A's ledger · `>` `v` `<` `^` ceiling camera (the way it looks) · `R` patient file · `o` bottle · `H` archive shelf · `F` fuse · `G` fuse box · `T` table, bed or shelf (blocks movement and light) · `n` note (numbered top to bottom, left to right, matching the notes file) · `X` locked exit door. Lines starting with `;` are comments.
 
 ## Architecture
 
@@ -139,7 +148,8 @@ Map legend: `#` wall · `.` floor · `L` locker · `P` player start · `S` stalk
 - [x] **M7** Chapter 2, Surgery Wing: flashlight battery, fuses and a fuse box, a faster stalker; chapter select and progress
 - [x] **M8** Chapter 3, Records Basement: throwable bottles that draw the stalker, the archive stacks
 - [x] **M9** Chapter 4, Security Wing: ceiling cameras that see in the dark and ring an alarm
-- [ ] **M10** Chapter 5, the finale
+- [x] **M10** Chapter 5, The Roof: the hunt (a countdown escape) and the ending
+- [ ] **Next:** polish pass (screen shake, fullscreen, animations, sounds), then v1.0.0
 - [ ] **M11** Polish: settings, controller, performance. **Release v1.0 (Mode 1 complete)**
 
 ## Publish on GitHub

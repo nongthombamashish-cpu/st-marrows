@@ -14,7 +14,7 @@ typedef struct {
 
 // ---- Things you must collect to open the exit: keys, fuses, patient files, access cards ----
 // One row per kind in COLLECTIBLES (items.c). To add a kind: add a name here, a row there, and put its map character on a map.
-typedef enum { COLLECT_KEY, COLLECT_FUSE, COLLECT_FILE, COLLECT_CARD, COLLECT_COUNT } Collect;
+typedef enum { COLLECT_KEY, COLLECT_FUSE, COLLECT_FILE, COLLECT_CARD, COLLECT_LEDGER, COLLECT_COUNT } Collect;
 
 typedef struct {
     char        mapChar;     // the character on a map

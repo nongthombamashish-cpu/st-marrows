@@ -1,0 +1,25 @@
+; St. Marrow's - Mode 1, Chapter 5 (The Roof) notes.  PLACEHOLDER story text: rewrite freely.
+; Format: first line = title, the lines after it = the text. A line with only --- ends a note.
+; Notes are numbered by where their 'n' tile sits in the map: top to bottom, left to right.
+;   1 = the middle of the gallery   2 = by the roof door (east end)   3 = Mr. A's office (west end)   4 = reception (start)
+
+MR. A'S SCHEDULE
+2:00 a.m.  Theatre 1.
+2:14 a.m.  Records.
+2:40 a.m.  Security.
+3:00 a.m.  The roof.
+Every appointment in the building, kept in order, one after another.
+---
+ROOF ACCESS
+The stairwell is the only way out of this floor.
+The door opens for anyone who carries the ledger, and for no one else.
+It does not stay open for long. When the building wakes, the doors seal.
+---
+THE LEDGER
+Every name in this book was a patient. Every patient was a guest.
+Mr. A kept it so that no one would ever be forgotten.
+Take it, and the building will not let you leave quietly.
+---
+VISITOR LOG
+Visitors must sign in. The last signature is yours.
+It is in your own handwriting, and it is dated tomorrow.

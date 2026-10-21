@@ -9,6 +9,7 @@ static const CollectInfo COLLECTIBLES[COLLECT_COUNT] = {
     [COLLECT_FUSE] = { 'F', "Fuse",         "fuses",         T_FUSE, { 214,  96,  74, 255 } },
     [COLLECT_FILE] = { 'R', "Patient file", "patient files", T_FILE, { 226, 214, 170, 255 } },
     [COLLECT_CARD] = { 'A', "Access card",  "access cards",  T_CARD, { 120, 180, 230, 255 } },
+    [COLLECT_LEDGER] = { 'M', "Ledger",     "ledger",        T_LEDGER, { 150,  90,  60, 255 } },
 };
 
 const CollectInfo *CollectGet(Collect c)

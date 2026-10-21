@@ -14,15 +14,17 @@ typedef struct {
     float       stalkerSpeed;   // 1.0 = the speed from config.h
     bool        battery;        // does the flashlight run out in this chapter?
     bool        inventory;      // show the inventory (hotbar) in this chapter?
+    float       hunt;           // seconds of the final hunt once everything is collected (0 = no hunt)
 } Chapter;
 
-#define CHAPTER_COUNT 4
+#define CHAPTER_COUNT 5
 
 static const Chapter CHAPTERS[CHAPTER_COUNT] = {
-    { "Ward A",           "assets/maps/mode1_ch1.txt", "assets/notes/mode1_ch1.txt", "unlock the exit",    "All keys found. Reach the exit at the east end of the corridor.", "The exit is locked", 1.00f, false, false },
-    { "Surgery Wing",     "assets/maps/mode1_ch2.txt", "assets/notes/mode1_ch2.txt", "call the elevator",  "",                                                              "The elevator has no power", 1.12f, true,  true  },
-    { "Records Basement", "assets/maps/mode1_ch3.txt", "assets/notes/mode1_ch3.txt", "open the vault",     "All files found. Open the archive vault on the east side.",       "The vault is sealed", 1.20f, true,  true  },
-    { "Security Wing",    "assets/maps/mode1_ch4.txt", "assets/notes/mode1_ch4.txt", "open the control room", "All access cards found. Get to the control room door at the top.", "The control room door is locked", 1.22f, true,  true  },
+    { "Ward A",           "assets/maps/mode1_ch1.txt", "assets/notes/mode1_ch1.txt", "unlock the exit",    "All keys found. Reach the exit at the east end of the corridor.", "The exit is locked", 1.00f, false, false, 0.0f },
+    { "Surgery Wing",     "assets/maps/mode1_ch2.txt", "assets/notes/mode1_ch2.txt", "call the elevator",  "",                                                              "The elevator has no power", 1.12f, true,  true,  0.0f },
+    { "Records Basement", "assets/maps/mode1_ch3.txt", "assets/notes/mode1_ch3.txt", "open the vault",     "All files found. Open the archive vault on the east side.",       "The vault is sealed", 1.20f, true,  true,  0.0f },
+    { "Security Wing",    "assets/maps/mode1_ch4.txt", "assets/notes/mode1_ch4.txt", "open the control room", "All access cards found. Get to the control room door at the top.", "The control room door is locked", 1.22f, true,  true,  0.0f },
+    { "The Roof",         "assets/maps/mode1_ch5.txt", "assets/notes/mode1_ch5.txt", "open the roof door", "You have the ledger.  RUN to the roof door at the east end!", "The roof door is locked", 1.10f, true,  true,  90.0f },
 };
 
 #endif

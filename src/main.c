@@ -26,6 +26,7 @@
 #include "throw.h"
 #include "inventory.h"
 #include "cameras.h"
+#include "hunt.h"
 
 #define SETTINGS_FILE "settings.txt"                // saved next to the game: the volume (0-10) and how many chapters are unlocked
 #define TITLE_CREDIT  "Made by Mr. A   |   Art: Kenney (CC0)"
@@ -253,6 +254,8 @@ int main(void)
     Objective obj;
     Throw thrown;                      // the bottle in the air (Chapter 3)
     Cams cams;                         // the security cameras (Chapter 4)
+    Hunt hunt;                         // the final hunt (Chapter 5)
+    const char *endReason = NULL;      // the title on the "caught" screen when it is not the stalker (NULL = IT FOUND YOU)
     int chapter = 0;                   // the chapter selected on the title screen / being played (0 = chapter 1)
     if (!LoadChapter(chapter, &map, notes, &noteCount, &obj, &player, &stalker, &cams)) {
         while (!WindowShouldClose() && !IsKeyPressed(KEY_ESCAPE)) {
@@ -267,6 +270,7 @@ int main(void)
         return 1;
     }
     ThrowInit(&thrown);
+    HuntInit(&hunt);
 
     RenderTexture2D scene = LoadRenderTexture(VIRT_W, VIRT_H);   // the game picture
     RenderTexture2D mask  = LoadRenderTexture(VIRT_W, VIRT_H);   // the darkness, multiplied over the picture
@@ -351,6 +355,14 @@ int main(void)
                         AudioChime();
                     }
                 }
+                if (CHAPTERS[chapter].hunt > 0.0f && !hunt.active && ObjectiveDone(&obj, &map)) {   // the last thing is taken: the building turns on you
+                    HuntStart(&hunt, CHAPTERS[chapter].hunt);
+                    StalkerSetSpeed(&stalker, CHAPTERS[chapter].stalkerSpeed * HUNT_SPEED);
+                    StalkerAlert(&stalker, &map, player.pos);
+                    TextCopy(toast, "The building knows.  RUN to the roof door!");
+                    toastTime = 4.0f;
+                    AudioAlarm();
+                }
                 if (!player.hidden) {                                    // batteries, bottles ...: walk over an item to pick it up
                     ItemId got = PickUpItem(&player.inv, &map, player.pos);
                     if (got != ITEM_NONE) {
@@ -418,13 +430,18 @@ int main(void)
                 }
             }
             Vector2 seenAt;                                          // security cameras: if one rings the alarm, the stalker goes to where it saw you
-            if (state != GS_COMPLETE && CamsUpdate(&cams, &map, player.pos, player.hidden, dt, &seenAt)) {
+            switch (HuntUpdate(&hunt, dt)) {                         // the hunt: every few seconds the stalker is told where you are
+                case HUNT_PING_NOW: StalkerAlert(&stalker, &map, player.pos); break;
+                case HUNT_TIMEOUT:  if (state != GS_COMPLETE) { state = GS_CAUGHT; endReason = "THE DOORS SEALED"; AudioSting(); } break;
+                default: break;
+            }
+            if (state != GS_COMPLETE && CamsUpdate(&cams, &map, player.pos, player.hidden || hunt.active, dt, &seenAt)) {
                 StalkerAlert(&stalker, &map, seenAt);
                 TextCopy(toast, "ALARM!  A camera saw you.");
                 toastTime = 3.0f;
                 AudioAlarm();
             }
-            if (state != GS_COMPLETE && StalkerUpdate(&stalker, &map, &player, dt)) { state = GS_CAUGHT; AudioSting(); }
+            if (state != GS_COMPLETE && state != GS_CAUGHT && StalkerUpdate(&stalker, &map, &player, dt)) { state = GS_CAUGHT; endReason = NULL; AudioSting(); }
         } else if (state == GS_MENU || state == GS_PAUSED) {
             int count = 4;                                   // title: Play, Chapter, Volume, Quit.   pause: Resume, Volume, Restart, Quit to title
             int volRow = (state == GS_MENU) ? 2 : 1;
@@ -463,6 +480,8 @@ int main(void)
                 runTime = 0;
                 openNote = -1;
                 ThrowInit(&thrown);
+                HuntInit(&hunt);
+                endReason = NULL;
                 menuMsg[0] = '\0';
                 TextCopy(toast, TextFormat("Chapter %d: %s", chapter + 1, CHAPTERS[chapter].name));
                 toastTime = 3.5f;
@@ -494,7 +513,7 @@ int main(void)
         // ---- Draw 1: the darkness mask (dark everywhere, light added where the lights are) ----
         float now = (float)GetTime();
         Color ambient = AMBIENT;
-        if (map.powered) {                                   // emergency lighting once the power is on: a slow red pulse
+        if (map.powered || hunt.active) {                    // emergency lighting (power on, or the hunt): a slow red pulse
             float pulse = 0.5f + 0.5f * sinf(now * 2.2f);
             ambient = (Color){ (unsigned char)(50.0f + 18.0f * pulse), 36, 44, 255 };
         }
@@ -555,6 +574,14 @@ int main(void)
                      12, 10, 16, (Color){ 200, 200, 200, 170 });
             DrawText(GoalText(&obj, &map, &CHAPTERS[chapter]), 12, 34, 20, (Color){ 235, 205, 110, 235 });
 
+            if (hunt.active) {                               // the hunt: a pulsing red edge and the clock
+                float pulse = 0.5f + 0.5f * sinf(now * 6.0f);
+                DrawRectangleLinesEx((Rectangle){ 0, 0, (float)sw, (float)sh }, 10.0f, Fade((Color){ 220, 30, 30, 255 }, 0.15f + 0.25f * pulse));
+                int secs = (int)ceilf(hunt.left);
+                const char *clock = TextFormat("RUN   %d:%02d", secs / 60, secs % 60);
+                Color cc = (hunt.left < 20.0f && fmodf(now, 0.5f) < 0.25f) ? WHITE : (Color){ 235, 60, 50, 255 };
+                DrawText(clock, (sw - MeasureText(clock, 40)) / 2, 14, 40, cc);
+            }
             float watched = CamsSeen(&cams);                 // a red edge closes in while a camera is watching you
             if (watched > 0.0f)
                 DrawRectangleLinesEx((Rectangle){ 0, 0, (float)sw, (float)sh }, 6.0f + 22.0f * watched, Fade((Color){ 220, 30, 30, 255 }, 0.25f + 0.5f * watched));
@@ -620,20 +647,27 @@ int main(void)
             }
             if (state == GS_CAUGHT) {
                 DrawRectangle(0, 0, sw, sh, (Color){ 60, 0, 0, 170 });
-                const char *title = "IT FOUND YOU";
+                const char *title = endReason ? endReason : "IT FOUND YOU";
                 const char *hint = "Press R to try again     (Esc: title screen)";
                 DrawText(title, (sw - MeasureText(title, 48)) / 2, sh / 2 - 40, 48, (Color){ 225, 50, 50, 255 });
                 DrawText(hint, (sw - MeasureText(hint, 20)) / 2, sh / 2 + 20, 20, RAYWHITE);
             }
             if (state == GS_COMPLETE) {
                 DrawRectangle(0, 0, sw, sh, (Color){ 0, 0, 0, 170 });
-                const char *title = TextFormat("CHAPTER %d COMPLETE", chapter + 1);
+                bool last = (chapter + 1 >= CHAPTER_COUNT);               // the finale gets an ending
+                const char *title = last ? "THE END" : TextFormat("CHAPTER %d COMPLETE", chapter + 1);
                 const char *timeText = TextFormat("%s   -   Time  %d:%02d", CHAPTERS[chapter].name, (int)runTime / 60, (int)runTime % 60);
-                const char *hint = (chapter + 1 < CHAPTER_COUNT) ? "Enter  next chapter        R  play again        Esc  title screen"
-                                                                  : "More chapters are coming.        R  play again        Esc  title screen";
+                const char *hint = last ? "R  play again        Esc  title screen"
+                                        : "Enter  next chapter        R  play again        Esc  title screen";
                 DrawText(title, (sw - MeasureText(title, 48)) / 2, sh / 2 - 60, 48, (Color){ 235, 205, 110, 255 });
                 DrawText(timeText, (sw - MeasureText(timeText, 26)) / 2, sh / 2 + 6, 26, RAYWHITE);
-                DrawText(hint, (sw - MeasureText(hint, 20)) / 2, sh / 2 + 48, 20, (Color){ 190, 190, 190, 255 });
+                int hintY = sh / 2 + 48;
+                if (last) {
+                    const char *thanks = "You made it out of St. Marrow's.   Thank you for playing.";
+                    DrawText(thanks, (sw - MeasureText(thanks, 22)) / 2, sh / 2 + 48, 22, (Color){ 225, 220, 200, 255 });
+                    hintY = sh / 2 + 92;
+                }
+                DrawText(hint, (sw - MeasureText(hint, 20)) / 2, hintY, 20, (Color){ 190, 190, 190, 255 });
             }
             if (state == GS_MENU || state == GS_PAUSED) {
                 float t = (float)GetTime();
