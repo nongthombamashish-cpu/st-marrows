@@ -28,12 +28,26 @@
 #include "cameras.h"
 #include "hunt.h"
 
-#define SETTINGS_FILE "settings.txt"                // saved next to the game: the volume (0-10) and how many chapters are unlocked
+#define SETTINGS_FILE "settings.txt"                // saved next to the game: the volume (0-10), unlocked chapters, fullscreen
 #define TITLE_CREDIT  "Made by Mr. A   |   Art: Kenney (CC0)"
+
+// The credits after THE END. A line that starts with # is a heading; "" is a gap. Edit them here.
+static const char *CREDITS[] = {
+    "#ST. MARROW'S", "",
+    "A game by Mr. A", "",
+    "#Made with", "C and raylib 6.0",
+    "raylib by Ramon Santamaria and contributors (zlib license)", "",
+    "#Art", "Tiny Dungeon by Kenney (CC0)", "",
+    "#Sound", "Every sound is made in code", "",
+    "#Thank you for playing",
+};
+#define CREDITS_LINES ((int)(sizeof CREDITS / sizeof CREDITS[0]))
+#define CREDITS_LINE_H 34.0f
+static float CreditsEndY(int screenH) { return screenH * 0.42f - (CREDITS_LINES - 1) * CREDITS_LINE_H; }   // where the scroll stops
 
 static const Color AMBIENT = { 40, 40, 56, 255 };   // how dark "dark" is (0 = pitch black)
 
-typedef enum { GS_MENU, GS_PLAYING, GS_READING, GS_PAUSED, GS_CAUGHT, GS_COMPLETE } GameState;
+typedef enum { GS_MENU, GS_PLAYING, GS_READING, GS_PAUSED, GS_CAUGHT, GS_COMPLETE, GS_CREDITS } GameState;
 
 // Scale of the 640x360 picture inside the window (whole numbers when possible = sharp pixels).
 static float GetViewScale(void)
@@ -88,13 +102,13 @@ static int DrawWrapped(const char *text, int x, int y, int maxW, int size, Color
     return y;
 }
 
-// settings.txt (next to the game): line 1 = volume 0-10, line 2 = how many chapters are unlocked.
-static void LoadSettings(int *volume, int *unlocked)
+// settings.txt (next to the game): line 1 = volume 0-10, line 2 = how many chapters are unlocked, line 3 = fullscreen (0 or 1).
+static void LoadSettings(int *volume, int *unlocked, bool *fullscreen)
 {
-    int v = 8, u = 1;                                       // defaults
+    int v = 8, u = 1, f = 0;                                // defaults
     char *text = LoadFileText(SETTINGS_FILE);
     if (text) {
-        sscanf(text, "%d %d", &v, &u);                      // an old file with only the volume leaves u at 1
+        sscanf(text, "%d %d %d", &v, &u, &f);               // an older file with fewer lines keeps the defaults
         UnloadFileText(text);
     }
     if (v < 0) v = 0;
@@ -103,11 +117,12 @@ static void LoadSettings(int *volume, int *unlocked)
     if (u > CHAPTER_COUNT) u = CHAPTER_COUNT;
     *volume = v;
     *unlocked = u;
+    *fullscreen = (f != 0);
 }
 
-static void SaveSettings(int volume, int unlocked)
+static void SaveSettings(int volume, int unlocked, bool fullscreen)
 {
-    SaveFileText(SETTINGS_FILE, (char *)TextFormat("%d\n%d", volume, unlocked));
+    SaveFileText(SETTINGS_FILE, (char *)TextFormat("%d\n%d\n%d", volume, unlocked, fullscreen ? 1 : 0));
 }
 
 // The yellow line at the top: what to do next.
@@ -156,6 +171,12 @@ static void UseSelected(Player *player, Throw *thrown, const Map *map, Vector2 a
         default:
             break;                                           // an empty slot: nothing happens
     }
+}
+
+// What a chapter sounds like: the drone's pitch and the floor under your feet.
+static void ApplyChapterSound(const Chapter *ch)
+{
+    AudioSetScene(ch->dronePitch, ch->stepPitch, ch->stepVolume);
 }
 
 // Loads a chapter's map and notes, and puts the player and the stalker at the start. False if the map file is missing.
@@ -242,7 +263,9 @@ int main(void)
     AudioInit();                                     // no sound device? the game just runs silently
     ChangeDirectory(GetApplicationDirectory());      // so "assets/..." is found next to the EXE
     int volume, unlocked;
-    LoadSettings(&volume, &unlocked);                // volume 0..10 and unlocked chapters, remembered between runs
+    bool fullscreen;
+    LoadSettings(&volume, &unlocked, &fullscreen);   // volume 0..10, unlocked chapters and fullscreen, remembered between runs
+    if (fullscreen) ToggleBorderlessWindowed();
     AudioSetVolume(volume / 10.0f);
     TilesLoad();                                     // sprites from assets/tiles (plain shapes if not set up)
 
@@ -271,6 +294,7 @@ int main(void)
     }
     ThrowInit(&thrown);
     HuntInit(&hunt);
+    ApplyChapterSound(&CHAPTERS[chapter]);
 
     RenderTexture2D scene = LoadRenderTexture(VIRT_W, VIRT_H);   // the game picture
     RenderTexture2D mask  = LoadRenderTexture(VIRT_W, VIRT_H);   // the darkness, multiplied over the picture
@@ -289,10 +313,13 @@ int main(void)
     float runTime = 0;                 // seconds spent in this run
     char toast[96] = "";               // short message at the bottom of the screen
     float toastTime = 0;
+    float shake = 0.0f;                // screen shake: 0..1, fades out by itself
+    float creditsY = 0.0f;             // where the credits are scrolled to
 
     while (!quit && !WindowShouldClose()) {
         float dt = fminf(GetFrameTime(), 0.05f);
         if (toastTime > 0) toastTime -= dt;
+        shake = fmaxf(0.0f, shake - dt * 2.2f);
 
         bool up     = IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP);
         bool down   = IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN);
@@ -312,7 +339,7 @@ int main(void)
                 AudioPaper();
             } else if (state == GS_PAUSED) {
                 state = GS_PLAYING;
-            } else if (state == GS_CAUGHT || state == GS_COMPLETE) {
+            } else if (state == GS_CAUGHT || state == GS_COMPLETE || state == GS_CREDITS) {
                 if (state == GS_COMPLETE && chapter + 1 < unlocked) chapter++;   // the title screen offers the next chapter
                 state = GS_MENU;
                 menuSel = 0;
@@ -359,6 +386,7 @@ int main(void)
                     HuntStart(&hunt, CHAPTERS[chapter].hunt);
                     StalkerSetSpeed(&stalker, CHAPTERS[chapter].stalkerSpeed * HUNT_SPEED);
                     StalkerAlert(&stalker, &map, player.pos);
+                    shake = fminf(1.0f, shake + 0.8f);
                     TextCopy(toast, "The building knows.  RUN to the roof door!");
                     toastTime = 4.0f;
                     AudioAlarm();
@@ -388,6 +416,7 @@ int main(void)
                             toastTime = 2.0f;
                         } else if (obj.got[COLLECT_FUSE] >= obj.total[COLLECT_FUSE]) {   // the breaker catches: loud. The stalker goes to look.
                             map.powered = true;
+                            shake = fminf(1.0f, shake + 0.6f);
                             StalkerAlert(&stalker, &map, player.pos);
                             TextCopy(toast, "Power restored.  The whole wing heard that.");
                             toastTime = 4.0f;
@@ -403,7 +432,7 @@ int main(void)
                             AudioComplete();
                             if (chapter + 2 > unlocked && chapter + 1 < CHAPTER_COUNT) {   // the next chapter opens
                                 unlocked = chapter + 2;
-                                SaveSettings(volume, unlocked);
+                                SaveSettings(volume, unlocked, fullscreen);
                             }
                         } else {
                             TextCopy(toast, LockedText(&obj, &CHAPTERS[chapter], false));
@@ -421,6 +450,7 @@ int main(void)
             Vector2 landed;                                          // a bottle in the air: when it shatters, the stalker may hear it
             if (ThrowUpdate(&thrown, dt, &landed)) {
                 float dist = Vector2Distance(landed, player.pos);
+                shake = fminf(1.0f, shake + 0.3f * Clamp(1.0f - dist / 220.0f, 0.0f, 1.0f));     // a bottle breaking close by makes you flinch
                 AudioGlass(Clamp(1.0f - dist / 700.0f, 0.25f, 1.0f), Clamp((landed.x - player.pos.x) / 160.0f, -1.0f, 1.0f));
                 if (Vector2Distance(stalker.pos, landed) < THROW_NOISE_RADIUS) StalkerAlert(&stalker, &map, landed);
                 if (CamsBreakNear(&cams, landed)) {                  // a bottle shattered right next to a camera
@@ -432,16 +462,19 @@ int main(void)
             Vector2 seenAt;                                          // security cameras: if one rings the alarm, the stalker goes to where it saw you
             switch (HuntUpdate(&hunt, dt)) {                         // the hunt: every few seconds the stalker is told where you are
                 case HUNT_PING_NOW: StalkerAlert(&stalker, &map, player.pos); break;
-                case HUNT_TIMEOUT:  if (state != GS_COMPLETE) { state = GS_CAUGHT; endReason = "THE DOORS SEALED"; AudioSting(); } break;
+                case HUNT_TIMEOUT:  if (state != GS_COMPLETE) { state = GS_CAUGHT; endReason = "THE DOORS SEALED"; shake = 1.0f; AudioSting(); } break;
                 default: break;
             }
             if (state != GS_COMPLETE && CamsUpdate(&cams, &map, player.pos, player.hidden || hunt.active, dt, &seenAt)) {
                 StalkerAlert(&stalker, &map, seenAt);
+                shake = fminf(1.0f, shake + 0.5f);
                 TextCopy(toast, "ALARM!  A camera saw you.");
                 toastTime = 3.0f;
                 AudioAlarm();
             }
-            if (state != GS_COMPLETE && state != GS_CAUGHT && StalkerUpdate(&stalker, &map, &player, dt)) { state = GS_CAUGHT; endReason = NULL; AudioSting(); }
+            StalkerState wasState = stalker.state;
+            if (state != GS_COMPLETE && state != GS_CAUGHT && StalkerUpdate(&stalker, &map, &player, dt)) { state = GS_CAUGHT; endReason = NULL; shake = 1.0f; AudioSting(); }
+            if (wasState != ST_CHASE && stalker.state == ST_CHASE) shake = fminf(1.0f, shake + 0.35f);   // it has seen you
         } else if (state == GS_MENU || state == GS_PAUSED) {
             int count = 4;                                   // title: Play, Chapter, Volume, Quit.   pause: Resume, Volume, Restart, Quit to title
             int volRow = (state == GS_MENU) ? 2 : 1;
@@ -457,7 +490,7 @@ int main(void)
                 if (volume < 0) volume = 0;
                 if (volume > 10) volume = 10;
                 AudioSetVolume(volume / 10.0f);
-                SaveSettings(volume, unlocked);
+                SaveSettings(volume, unlocked, fullscreen);
                 AudioChime();                                // so you can hear the new level
             }
             if (accept) {
@@ -470,9 +503,15 @@ int main(void)
                     else if (menuSel == 3) { state = GS_MENU; menuSel = 0; }
                 }
             }
+        } else if (state == GS_CREDITS) {                    // the credits scroll up and stop; Enter goes back to the title
+            creditsY = fmaxf(creditsY - CREDITS_SPEED * dt, CreditsEndY(GetScreenHeight()));
+            if (accept) { state = GS_MENU; menuSel = 0; }
         } else {                                             // caught or finished
             if (IsKeyPressed(KEY_R)) startRun = true;        // R starts the chapter over
-            else if (state == GS_COMPLETE && accept && chapter + 1 < CHAPTER_COUNT) { chapter++; startRun = true; }   // Enter: next chapter
+            else if (state == GS_COMPLETE && accept) {
+                if (chapter + 1 < CHAPTER_COUNT) { chapter++; startRun = true; }                 // Enter: next chapter...
+                else { state = GS_CREDITS; creditsY = (float)GetScreenHeight(); }                // ...or, after the finale, the credits
+            }
         }
 
         if (startRun) {
@@ -481,6 +520,7 @@ int main(void)
                 openNote = -1;
                 ThrowInit(&thrown);
                 HuntInit(&hunt);
+                ApplyChapterSound(&CHAPTERS[chapter]);
                 endReason = NULL;
                 menuMsg[0] = '\0';
                 TextCopy(toast, TextFormat("Chapter %d: %s", chapter + 1, CHAPTERS[chapter].name));
@@ -492,12 +532,23 @@ int main(void)
                 menuSel = 1;
             }
         }
+        if (IsKeyPressed(KEY_F11)) {                         // fullscreen on / off (borderless: the screen resolution does not change)
+            ToggleBorderlessWindowed();
+            fullscreen = IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE);
+            SaveSettings(volume, unlocked, fullscreen);
+        }
         if (IsKeyPressed(KEY_F3)) debug = !debug;
         if (IsKeyPressed(KEY_F5)) tileBrowser = !tileBrowser;
         if (IsKeyPressed(KEY_F6)) TilesLoad();               // reload tiles.txt and the sheet without restarting
+        AudioSetHunt(hunt.active && (state == GS_PLAYING || state == GS_READING));      // the hunt: the heartbeat never stops
         AudioUpdate(&player, &stalker, state == GS_PLAYING || state == GS_READING, dt);
 
         cam.target = (Vector2){ roundf(player.pos.x), roundf(player.pos.y) };   // whole pixels = no shimmer
+        int jolt = (int)ceilf(SHAKE_MAX * shake * shake);                       // screen shake: a random whole-pixel jolt that fades out
+        if (jolt > 0) {
+            cam.target.x += (float)GetRandomValue(-jolt, jolt);
+            cam.target.y += (float)GetRandomValue(-jolt, jolt);
+        }
 
         // Mouse position: window pixels -> game pixels.
         float scale = GetViewScale();
@@ -550,11 +601,7 @@ int main(void)
                 DrawMap(&map, cam, eyes);
                 CamsDraw(&cams);
                 if (HasLineOfSight(&map, eyes, stalker.pos)) DrawStalker(&stalker);
-                if (!player.hidden && !TileDraw(T_PLAYER, player.pos.x - TILE / 2.0f, player.pos.y - TILE / 2.0f, aim.x < 0)) {
-                    DrawCircleV(player.pos, player.half, (Color){ 225, 205, 160, 255 });
-                    DrawLineEx(player.pos, Vector2Add(player.pos, Vector2Scale(Vector2Normalize(aim), 7)),
-                               2, (Color){ 255, 240, 200, 255 });
-                }
+                DrawPlayer(&player, aim);                                    // (nothing while you hide)
                 ThrowDraw(&thrown);
             EndMode2D();
             BeginBlendMode(BLEND_MULTIPLIED);
@@ -657,7 +704,7 @@ int main(void)
                 bool last = (chapter + 1 >= CHAPTER_COUNT);               // the finale gets an ending
                 const char *title = last ? "THE END" : TextFormat("CHAPTER %d COMPLETE", chapter + 1);
                 const char *timeText = TextFormat("%s   -   Time  %d:%02d", CHAPTERS[chapter].name, (int)runTime / 60, (int)runTime % 60);
-                const char *hint = last ? "R  play again        Esc  title screen"
+                const char *hint = last ? "Enter  credits        R  play again        Esc  title screen"
                                         : "Enter  next chapter        R  play again        Esc  title screen";
                 DrawText(title, (sw - MeasureText(title, 48)) / 2, sh / 2 - 60, 48, (Color){ 235, 205, 110, 255 });
                 DrawText(timeText, (sw - MeasureText(timeText, 26)) / 2, sh / 2 + 6, 26, RAYWHITE);
@@ -668,6 +715,22 @@ int main(void)
                     hintY = sh / 2 + 92;
                 }
                 DrawText(hint, (sw - MeasureText(hint, 20)) / 2, hintY, 20, (Color){ 190, 190, 190, 255 });
+            }
+            if (state == GS_CREDITS) {                                       // the credits
+                DrawRectangle(0, 0, sw, sh, (Color){ 6, 6, 10, 255 });
+                for (int i = 0; i < CREDITS_LINES; i++) {
+                    const char *line = CREDITS[i];
+                    bool head = (line[0] == '#');
+                    if (head) line++;
+                    float y = creditsY + i * CREDITS_LINE_H;
+                    if (line[0] == '\0' || y < -40.0f || y > sh + 10.0f) continue;
+                    int size = head ? 30 : 22;
+                    DrawText(line, (sw - MeasureText(line, size)) / 2, (int)y, size, head ? (Color){ 235, 205, 110, 255 } : (Color){ 225, 220, 200, 255 });
+                }
+                if (creditsY <= CreditsEndY(sh) + 0.5f && fmodf(now, 1.2f) < 0.8f) {
+                    const char *back = "Enter  back to the title screen";
+                    DrawText(back, (sw - MeasureText(back, 20)) / 2, sh - 60, 20, (Color){ 190, 190, 190, 255 });
+                }
             }
             if (state == GS_MENU || state == GS_PAUSED) {
                 float t = (float)GetTime();
@@ -690,7 +753,7 @@ int main(void)
                     const char *items[4] = { "Resume", volText, "Restart", "Quit to title" };
                     DrawMenu("PAUSED", "", items, 4, menuSel, t);
                 }
-                const char *help = "W / S  choose        A / D  change        Enter  select        Esc  back";
+                const char *help = "W / S  choose        A / D  change        Enter  select        Esc  back        F11  fullscreen";
                 DrawText(help, (sw - MeasureText(help, 16)) / 2, sh - 44, 16, (Color){ 110, 110, 120, 255 });
                 if (state == GS_MENU) {
                     DrawText(TITLE_CREDIT, 16, sh - 26, 14, (Color){ 90, 90, 100, 255 });

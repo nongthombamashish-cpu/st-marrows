@@ -8,7 +8,7 @@
 - **Lore:** the hospital was made by Mr. A.
 - **Platform:** Windows 64-bit.
 
-**Controls:** WASD / arrows move · Shift run (loud) · Mouse aims the flashlight · F flashlight on/off · E use (read a note, unlock the exit, hide in a locker, climb out) · 1-6 or mouse wheel pick an item · Click use the selected item · R restart after being caught · F3 debug (shows the stalker's state) · M mute · Esc pause menu
+**Controls:** WASD / arrows move · Shift run (loud) · Mouse aims the flashlight · F flashlight on/off · E use (read a note, unlock the exit, hide in a locker, climb out) · 1-6 or mouse wheel pick an item · Click use the selected item · R restart after being caught · F3 debug (shows the stalker's state) · M mute · F11 fullscreen · Esc pause menu
 
 ## Chapter 1 goal
 
@@ -22,7 +22,7 @@ Find the 3 fuses (sterilising room, pharmacy, Theatre 1), put them in the fuse b
 - **The fuse box is loud.** When you put the fuses in, the stalker hears it and goes to look at the spot where you stood. The wing switches to red emergency light and the elevator glows.
 - **A faster stalker** (12% faster; `stalkerSpeed` in `src/chapters.h`).
 
-**Chapters and progress:** finishing a chapter unlocks the next one (saved on line 2 of `settings.txt`). On the title screen use W/S to pick the *Chapter* row and A/D to change it. Press **F3** (debug) on the title screen to open every chapter for testing.
+**Chapters and progress:** finishing a chapter unlocks the next one (saved in `settings.txt`: line 1 volume, line 2 unlocked chapters, line 3 fullscreen). On the title screen use W/S to pick the *Chapter* row and A/D to change it. Press **F3** (debug) on the title screen to open every chapter for testing.
 
 ## Chapter 3 goal (Records Basement)
 
@@ -48,6 +48,14 @@ Cross the executive floor to Mr. A's office at the west end and take his **ledge
 - **The hunt.** The moment you take the ledger the building turns on you: alarm and a red pulse, a **90 second countdown** at the top of the screen, a stalker that is 14% faster, and every 6 seconds it is told where you are, so it keeps coming. The cameras stop watching you (the alarm is already ringing). If the clock runs out the doors seal and you are caught. You can still outrun the stalker, and bottles and lockers still work.
 - **The ending.** Reaching the roof door shows THE END with your time.
 - Tune it in `src/config.h` (`HUNT_SPEED`, `HUNT_PING`) and `src/chapters.h` (`hunt` = seconds on the clock, `stalkerSpeed`).
+
+## Polish
+
+- **F11** toggles fullscreen (borderless, so the screen resolution does not change). It is remembered between runs.
+- **Screen shake** when you are caught, an alarm rings, the stalker spots you, the power comes on, the hunt starts, or a bottle breaks next to you. `SHAKE_MAX` in `src/config.h` sets the biggest jolt in pixels; set it to `0` to turn the shake off.
+- **Walk animation:** you and the stalker hop with every step and have a shadow; the stalker flushes red while it chases you.
+- **Sound:** every chapter has its own drone pitch and floor (footstep pitch and loudness): see `dronePitch`, `stepPitch`, `stepVolume` in `src/chapters.h`. Now and then a drip, a creak or a thump sounds somewhere else in the building. During the hunt your heartbeat never stops.
+- **Credits** roll after THE END (press Enter). Edit them in the `CREDITS` list at the top of `src/main.c`; `CREDITS_SPEED` in `src/config.h` sets the scroll speed.
 
 ## Inventory
 
@@ -149,7 +157,8 @@ Map legend: `#` wall · `.` floor · `L` locker · `P` player start · `S` stalk
 - [x] **M8** Chapter 3, Records Basement: throwable bottles that draw the stalker, the archive stacks
 - [x] **M9** Chapter 4, Security Wing: ceiling cameras that see in the dark and ring an alarm
 - [x] **M10** Chapter 5, The Roof: the hunt (a countdown escape) and the ending
-- [ ] **Next:** polish pass (screen shake, fullscreen, animations, sounds), then v1.0.0
+- [x] **Polish pass:** F11 fullscreen, screen shake, walk animation, ambient and per-chapter sounds, credits
+- [ ] **Next:** play every chapter through, fix what feels off, then v1.0.0
 - [ ] **M11** Polish: settings, controller, performance. **Release v1.0 (Mode 1 complete)**
 
 ## Publish on GitHub

@@ -20,6 +20,7 @@ typedef struct {
 void  PlayerInit(Player *p, Vector2 start);
 // Loads the spare battery in an inventory slot into the flashlight. False if that slot holds no battery, or the flashlight is already full.
 bool  PlayerLoadBattery(Player *p, int slot);
+void  DrawPlayer(const Player *p, Vector2 aim);          // a shadow and a hop for every step; nothing while you hide (call inside BeginMode2D)
 void  PlayerUpdate(Player *p, const Map *m, float dt);   // reads the keyboard
 float PlayerNoise(const Player *p);                      // how far away the player can be heard right now
 

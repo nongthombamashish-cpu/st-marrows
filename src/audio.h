@@ -16,6 +16,10 @@ float AudioGetVolume(void);
 // Call once per frame: footsteps, heartbeat, the ambient drone and the chase alert.
 void AudioUpdate(const Player *p, const Stalker *s, bool playing, float dt);
 
+// What this chapter sounds like: the drone's pitch (1 = normal), and the floor under your feet (footstep pitch and loudness).
+void AudioSetScene(float dronePitch, float stepPitch, float stepVolume);
+void AudioSetHunt(bool on);           // the final hunt: a racing heartbeat the whole time
+
 // One-off sounds.
 void AudioChime(void);                // key picked up
 void AudioPaper(void);                // note opened / closed
@@ -43,6 +47,13 @@ Wave SynthLockedDoor(void);
 Wave SynthAlert(void);
 Wave SynthSting(void);
 Wave SynthComplete(void);
+Wave SynthDrip(void);
+Wave SynthCreak(void);
+Wave SynthThump(void);
+Wave SynthAlarm(void);
+Wave SynthGlass(void);
+Wave SynthThrow(void);
 void AudioDroneFill(short *out, unsigned int frames, float tension);   // what the ambient drone plays
+void AudioDroneFillEx(short *out, unsigned int frames, float tension, float pitch);   // the same, at another pitch (1 = normal)
 
 #endif

@@ -26,6 +26,7 @@ typedef struct {
     bool         knowsHiding;   // it watched you climb into a locker
     bool         prevHidden;    // were you hidden last frame?
     float        speedMul;      // 1.0 = chapter 1 speeds; later chapters make it faster
+    bool         moving;        // did it move this frame? (for its walk animation)
 } Stalker;
 
 void        StalkerInit(Stalker *s, const Map *m);

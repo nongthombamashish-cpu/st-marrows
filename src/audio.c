@@ -187,6 +187,51 @@ Wave SynthThrow(void)                 // a quick whoosh
     return Finish(b, n, 0.5f);
 }
 
+Wave SynthDrip(void)                  // a water drip somewhere: a quick falling "plink" and a faint echo
+{
+    unsigned int n; float *b = Buf(0.5f, &n);
+    for (unsigned int i = 0; i < n; i++) {
+        float t = (float)i / SR;
+        float plink = sinf(2.0f * PI * (1500.0f * t - 4000.0f * t * t)) * expf(-t * 55.0f);      // the pitch falls as it fades
+        float te = t - 0.14f;
+        float echo = (te > 0.0f) ? sinf(2.0f * PI * (1300.0f * te - 3500.0f * te * te)) * expf(-te * 60.0f) * 0.3f : 0.0f;
+        b[i] = plink + echo;
+    }
+    return Finish(b, n, 0.5f);
+}
+
+Wave SynthCreak(void)                 // far-off wood creaking: a groaning note that sticks and slips
+{
+    unsigned int n; float *b = Buf(1.1f, &n);
+    Seed(41u);
+    float phase = 0.0f, lp = 0.0f;
+    for (unsigned int i = 0; i < n; i++) {
+        float t = (float)i / SR;
+        float f = 150.0f + 70.0f * sinf(2.0f * PI * 1.3f * t) + 40.0f * t;                       // the pitch wanders
+        phase += 2.0f * PI * f / SR;
+        float saw = fmodf(phase / (2.0f * PI), 1.0f) * 2.0f - 1.0f;                                // a rough saw wave
+        lp += 0.12f * (saw - lp);
+        float stick = fabsf(sinf(2.0f * PI * 9.0f * t + 1.5f * sinf(2.0f * PI * 2.1f * t)));       // stick-slip pulses
+        float env = sinf(PI * t / 1.1f);
+        b[i] = lp * stick * stick * env + 0.05f * Rand() * env;
+    }
+    return Finish(b, n, 0.45f);
+}
+
+Wave SynthThump(void)                 // something heavy, far away, in another room
+{
+    unsigned int n; float *b = Buf(0.7f, &n);
+    Seed(63u);
+    float lp = 0.0f;
+    for (unsigned int i = 0; i < n; i++) {
+        float t = (float)i / SR;
+        lp += 0.03f * (Rand() - lp);
+        float body = sinf(2.0f * PI * (60.0f * t - 40.0f * t * t)) * expf(-t * 7.0f);             // a low note that drops
+        b[i] = body + 3.0f * lp * expf(-t * 12.0f);
+    }
+    return Finish(b, n, 0.6f);
+}
+
 Wave SynthAlarm(void)                 // a security alarm: two buzzing tones taking turns
 {
     unsigned int n; float *b = Buf(1.2f, &n);
@@ -251,7 +296,7 @@ Wave SynthComplete(void)              // chapter complete: a rising arpeggio
 
 // The ambient drone: two slightly detuned low notes that beat slowly, a breathing hum, and an
 // uneasy extra note that fades in with 'tension' (0..1).
-void AudioDroneFill(short *out, unsigned int frames, float tension)
+void AudioDroneFillEx(short *out, unsigned int frames, float tension, float pitch)
 {
     static double p1, p2, p3, p4, lfo;
     static float lp, smooth;
@@ -259,7 +304,7 @@ void AudioDroneFill(short *out, unsigned int frames, float tension)
     const double k = 2.0 * 3.14159265358979323846 / SR, twoPi = 2.0 * 3.14159265358979323846;
 
     for (unsigned int i = 0; i < frames; i++) {
-        p1 += k * 55.0;  p2 += k * 55.9;  p3 += k * 82.5;  p4 += k * 77.8;  lfo += k * 0.07;
+        p1 += k * 55.0 * pitch;  p2 += k * 55.9 * pitch;  p3 += k * 82.5 * pitch;  p4 += k * 77.8 * pitch;  lfo += k * 0.07;
         if (p1 >= twoPi) p1 -= twoPi;
         if (p2 >= twoPi) p2 -= twoPi;
         if (p3 >= twoPi) p3 -= twoPi;
@@ -280,6 +325,12 @@ void AudioDroneFill(short *out, unsigned int frames, float tension)
         s *= 0.22f + 0.16f * smooth;
         out[i] = (short)(Clamp(s, -1.0f, 1.0f) * 32000.0f);
     }
+}
+
+// The same drone at its normal pitch.
+void AudioDroneFill(short *out, unsigned int frames, float tension)
+{
+    AudioDroneFillEx(out, frames, tension, 1.0f);
 }
 
 // ---- Playing sounds ------------------------------------------------------------------------
@@ -314,21 +365,27 @@ static void PoolFree(Pool *p)
 static struct {
     bool ready, muted;
     float volume;                                   // 0..1, set from the menu
-    Pool step[3], stalkerStep, heartbeat, chime, paper, locker, lockedDoor, alert, sting, complete, glass, whoosh, alarm;
+    Pool step[3], stalkerStep, heartbeat, chime, paper, locker, lockedDoor, alert, sting, complete, glass, whoosh, alarm, drip, creak, thump;
+    float stepPitch, stepVol;                       // the floor under your feet (set per chapter)
+    bool hunt;                                      // the final hunt: the heartbeat never stops
     AudioStream drone;
 } A;
 
 static volatile float g_tension = 0.0f;           // read by the audio thread
+static volatile float g_dronePitch = 1.0f;        // the drone's pitch (set per chapter)
 
 static void DroneCallback(void *buffer, unsigned int frames)
 {
-    AudioDroneFill((short *)buffer, frames, g_tension);
+    AudioDroneFillEx((short *)buffer, frames, g_tension, g_dronePitch);
 }
 
 bool AudioInit(void)
 {
     memset(&A, 0, sizeof A);
     A.volume = 0.85f;
+    A.stepPitch = 1.0f;
+    A.stepVol = 1.0f;
+    g_dronePitch = 1.0f;
     InitAudioDevice();
     A.ready = IsAudioDeviceReady();
     if (!A.ready) return false;
@@ -349,6 +406,9 @@ bool AudioInit(void)
     PoolMake(&A.glass, SynthGlass());
     PoolMake(&A.whoosh, SynthThrow());
     PoolMake(&A.alarm, SynthAlarm());
+    PoolMake(&A.drip, SynthDrip());
+    PoolMake(&A.creak, SynthCreak());
+    PoolMake(&A.thump, SynthThump());
 
     A.drone = LoadAudioStream(SR, 16, 1);
     SetAudioStreamCallback(A.drone, DroneCallback);
@@ -366,6 +426,7 @@ void AudioShutdown(void)
     PoolFree(&A.stalkerStep); PoolFree(&A.heartbeat); PoolFree(&A.chime); PoolFree(&A.paper);
     PoolFree(&A.locker); PoolFree(&A.lockedDoor); PoolFree(&A.alert); PoolFree(&A.sting); PoolFree(&A.complete);
     PoolFree(&A.glass); PoolFree(&A.whoosh); PoolFree(&A.alarm);
+    PoolFree(&A.drip); PoolFree(&A.creak); PoolFree(&A.thump);
     CloseAudioDevice();
     A.ready = false;
 }
@@ -398,6 +459,13 @@ void AudioPowerOn(void)    { if (A.ready) PoolPlay(&A.complete, 0.9f, 0.0f, 0.55
 void AudioThrow(void)      { if (A.ready) PoolPlay(&A.whoosh, 0.5f, 0.0f, 0.95f + 0.1f * (float)GetRandomValue(0, 10) / 10.0f); }
 void AudioAlarm(void)      { if (A.ready) PoolPlay(&A.alarm, 0.75f, 0.0f, 1.0f); }                          // a camera saw you
 void AudioCameraBreak(void){ if (A.ready) PoolPlay(&A.lockedDoor, 0.8f, 0.0f, 0.6f); }                       // a camera smashed: the metal rattle, low
+void AudioSetScene(float dronePitch, float stepPitch, float stepVolume)
+{
+    g_dronePitch = dronePitch;                       // read by the audio thread
+    A.stepPitch = stepPitch;
+    A.stepVol = stepVolume;
+}
+void AudioSetHunt(bool on) { A.hunt = on; }
 void AudioBottle(void)     { if (A.ready) PoolPlay(&A.glass, 0.22f, 0.0f, 1.7f); }                           // the shatter, tiny and high: a clink
 void AudioGlass(float volume, float pan) { if (A.ready) PoolPlay(&A.glass, volume, pan, 0.94f + 0.12f * (float)GetRandomValue(0, 10) / 10.0f); }
 
@@ -416,6 +484,7 @@ void AudioUpdate(const Player *p, const Stalker *s, bool playing, float dt)
         closeness = Clamp(1.0f - dist / 260.0f, 0.0f, 1.0f);
         if (s->state == ST_CHASE) closeness = fmaxf(closeness, 0.85f);
     }
+    if (A.hunt) closeness = fmaxf(closeness, 0.6f);     // the hunt: your heart is racing whatever the stalker does
     g_tension = playing ? closeness : 0.0f;
 
     if (!playing) {
@@ -434,7 +503,7 @@ void AudioUpdate(const Player *p, const Stalker *s, bool playing, float dt)
         stepDist += (p->running ? PLAYER_RUN : PLAYER_WALK) * dt;
         if (stepDist >= stride) {
             stepDist -= stride;
-            PoolPlay(&A.step[GetRandomValue(0, 2)], p->running ? 0.7f : 0.38f, 0.0f, 0.92f + 0.16f * (float)GetRandomValue(0, 10) / 10.0f);
+            PoolPlay(&A.step[GetRandomValue(0, 2)], (p->running ? 0.7f : 0.38f) * A.stepVol, 0.0f, (0.92f + 0.16f * (float)GetRandomValue(0, 10) / 10.0f) * A.stepPitch);
         }
     } else {
         stepDist = stride * 0.7f;                         // so your first step comes quickly
@@ -452,7 +521,7 @@ void AudioUpdate(const Player *p, const Stalker *s, bool playing, float dt)
                 float v = Clamp(1.0f - dist / 300.0f, 0.0f, 1.0f);
                 v = v * v * 0.95f;
                 if (v > 0.02f)
-                    PoolPlay(&A.stalkerStep, v, Clamp((s->pos.x - p->pos.x) / 160.0f, -1.0f, 1.0f), 0.95f + 0.1f * (float)GetRandomValue(0, 10) / 10.0f);
+                    PoolPlay(&A.stalkerStep, v * A.stepVol, Clamp((s->pos.x - p->pos.x) / 160.0f, -1.0f, 1.0f), (0.95f + 0.1f * (float)GetRandomValue(0, 10) / 10.0f) * A.stepPitch);
             }
         }
     }
@@ -466,5 +535,21 @@ void AudioUpdate(const Player *p, const Stalker *s, bool playing, float dt)
         }
     } else {
         heartTimer = fminf(heartTimer, 0.4f);             // so it starts soon after it gets near
+    }
+
+    // Now and then something happens somewhere else in the building: a drip, a creak, a thump in another room.
+    static float ambientIn = 12.0f;
+    ambientIn -= dt;
+    if (ambientIn <= 0.0f) {
+        ambientIn = 9.0f + 15.0f * (float)GetRandomValue(0, 100) / 100.0f;      // the next one in 9 to 24 seconds
+        if (closeness < 0.7f) {                                                 // not while something is right behind you
+            int pick = GetRandomValue(0, 99);
+            float pan = (float)GetRandomValue(-100, 100) / 100.0f;
+            float vol = 0.12f + 0.16f * (float)GetRandomValue(0, 100) / 100.0f;
+            float r = (float)GetRandomValue(0, 100) / 100.0f;
+            if (pick < 55)      PoolPlay(&A.drip, vol, pan, 0.85f + 0.4f * r);
+            else if (pick < 85) PoolPlay(&A.creak, vol * 1.3f, pan, 0.75f + 0.4f * r);
+            else                PoolPlay(&A.thump, vol * 1.6f, pan, 0.7f + 0.25f * r);
+        }
     }
 }

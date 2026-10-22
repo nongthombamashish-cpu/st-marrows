@@ -1,5 +1,6 @@
 #include "player.h"
 #include "raymath.h"
+#include "tiles.h"
 #include <math.h>
 
 void PlayerInit(Player *p, Vector2 start)
@@ -100,4 +101,20 @@ void PlayerLeaveLocker(Player *p)
     if (!p->hidden) return;
     p->pos = p->exitPos;
     p->hidden = false;
+}
+
+void DrawPlayer(const Player *p, Vector2 aim)
+{
+    if (p->hidden) return;
+    float t = (float)GetTime();
+    float bob;
+    if (p->moving) bob = fabsf(sinf(t * (p->running ? 19.0f : 12.0f))) * (p->running ? 2.0f : 1.4f);   // a hop for every step
+    else           bob = (sinf(t * 2.2f) + 1.0f) * 0.35f;                                              // standing still: a slow breath
+    bob = roundf(bob);                                                                                // whole pixels: crisp pixel art
+
+    DrawEllipse((int)p->pos.x, (int)p->pos.y + 6, 5.0f - bob * 0.5f, 2.0f, (Color){ 0, 0, 0, 90 });   // the shadow shrinks as the feet leave the floor
+    Rectangle dst = { p->pos.x - TILE / 2.0f, p->pos.y - TILE / 2.0f - bob, (float)TILE, (float)TILE };
+    if (TileDrawEx(T_PLAYER, dst, WHITE, aim.x < 0)) return;
+    DrawCircleV(p->pos, p->half, (Color){ 225, 205, 160, 255 });                                      // the plain shape, if there is no picture
+    DrawLineEx(p->pos, Vector2Add(p->pos, Vector2Scale(Vector2Normalize(aim), 7)), 2, (Color){ 255, 240, 200, 255 });
 }

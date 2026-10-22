@@ -78,7 +78,7 @@ void StalkerAlert(Stalker *s, const Map *m, Vector2 where)
     GoTo(s, m, where);
 }
 
-bool StalkerUpdate(Stalker *s, const Map *m, const Player *p, float dt)
+static bool StalkerStep(Stalker *s, const Map *m, const Player *p, float dt)
 {
     if (!s->active) return false;
 
@@ -163,6 +163,14 @@ bool StalkerUpdate(Stalker *s, const Map *m, const Player *p, float dt)
     return los && dist < STALKER_CATCH_DIST;
 }
 
+bool StalkerUpdate(Stalker *s, const Map *m, const Player *p, float dt)
+{
+    Vector2 before = s->pos;
+    bool caught = StalkerStep(s, m, p, dt);
+    s->moving = Vector2Distance(before, s->pos) > 0.05f;
+    return caught;
+}
+
 const char *StalkerStateName(const Stalker *s)
 {
     switch (s->state) {
@@ -177,8 +185,15 @@ const char *StalkerStateName(const Stalker *s)
 void DrawStalker(const Stalker *s)
 {
     if (!s->active) return;
-    if (TileDraw(T_STALKER, s->pos.x - TILE / 2.0f, s->pos.y - TILE / 2.0f, cosf(s->facing) < 0)) return;
-    Color body = (s->state == ST_CHASE) ? (Color){ 235, 50, 50, 255 } : (Color){ 170, 70, 70, 255 };
+    bool chase = (s->state == ST_CHASE);
+    float bob = 0.0f;
+    if (s->moving) bob = roundf(fabsf(sinf((float)GetTime() * (chase ? 17.0f : 8.0f))) * (chase ? 2.0f : 1.0f));   // chasing: a hurried hop
+
+    DrawEllipse((int)s->pos.x, (int)s->pos.y + 6, 5.0f, 2.0f, (Color){ 0, 0, 0, 90 });                        // a shadow under its feet
+    Color tint = chase ? (Color){ 255, 170, 170, 255 } : WHITE;                                                // it flushes red once it has seen you
+    Rectangle dst = { s->pos.x - TILE / 2.0f, s->pos.y - TILE / 2.0f - bob, (float)TILE, (float)TILE };
+    if (TileDrawEx(T_STALKER, dst, tint, cosf(s->facing) < 0)) return;
+    Color body = chase ? (Color){ 235, 50, 50, 255 } : (Color){ 170, 70, 70, 255 };
     DrawCircleV(s->pos, 6, body);
     Vector2 nose = { s->pos.x + cosf(s->facing) * 9, s->pos.y + sinf(s->facing) * 9 };
     DrawLineEx(s->pos, nose, 2, (Color){ 255, 210, 210, 255 });

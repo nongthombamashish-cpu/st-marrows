@@ -29,7 +29,7 @@ Goal: get out of each wing alive.
   Chapter 4 (Security Wing): find the 3 access cards, then open the control room door. Ceiling cameras see in the dark and ring an alarm if they watch you for too long: cross while they swing away, hide in a locker, or smash one with a thrown bottle.
   Chapter 5 (The Roof): take Mr. A's ledger from his office, then run to the roof door before the 90 second countdown ends. The stalker is told where you are every few seconds.
 Inventory (Chapters 2-3): walk over items to pick them up. 1-6 or the mouse wheel select a slot, click uses the selected item (load a spare battery, throw a bottle).
-Controls: WASD move | Shift run (loud) | Mouse aim flashlight | F flashlight (or load a spare battery when it is dead) | E read / hide / use | 1-6 / wheel select item | Click use item | M mute | R restart | Esc pause menu
+Controls: WASD move | Shift run (loud) | Mouse aim flashlight | F flashlight (or load a spare battery when it is dead) | E read / hide / use | 1-6 / wheel select item | Click use item | M mute | F11 fullscreen | R restart | Esc pause menu
 "@ | Set-Content (Join-Path $stage "HOW_TO_PLAY.txt")
 
 Compress-Archive -Path $stage -DestinationPath (Join-Path $dist "$name.zip")

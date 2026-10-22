@@ -48,6 +48,10 @@
 #define CAM_ALARM_TIME         8.0f  // after an alarm no camera can ring again for this long
 #define CAM_BREAK_DIST        24.0f  // a bottle that shatters this close to a camera breaks it
 
+// Screen shake (getting caught, alarms, bumps)
+#define SHAKE_MAX              7.0f  // the biggest jolt in pixels (set it to 0 to turn the shake off)
+#define CREDITS_SPEED         55.0f  // how fast the credits scroll (pixels per second)
+
 // The hunt (Chapter 5): after you take the last thing the building turns on you
 #define HUNT_SPEED             1.14f // the stalker's speeds are multiplied by this during the hunt
 #define HUNT_PING              6.0f  // every this many seconds the stalker is told where you are
